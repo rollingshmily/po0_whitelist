@@ -1,19 +1,19 @@
 #!name=po0 直连 IP 加白
-#!desc=把本机 DIRECT 出口 IP 上报到一台或多台 po0。可自定义检查间隔。
+#!desc=v3：设置里可选「定时检查」，可填多台 po0。把本机 DIRECT 出口 IP 加白。
 #!author=rollingshmily
 #!homepage=https://github.com/rollingshmily/po0_whitelist
 #!tag=po0,whitelist
 #!loon_version=3.5.1(983)
 
 [Argument]
-cron = input,"*/5 * * * *",tag=检查间隔,desc=Cron，五段或六段。例 */5 * * * * 每5分钟，*/1 * * * * 每分钟，0 */2 * * * 每2小时
+schedule = select,"*/5 * * * *","*/1 * * * *","*/2 * * * *","*/10 * * * *","*/30 * * * *","0 * * * *",tag=定时检查,desc=依次为每5分钟、每1分钟、每2分钟、每10分钟、每30分钟、每小时
 host = input,"",tag=po0 地址,desc=第一台 po0 的公网 IP 或域名，不要带 http://
 port = input,"41741",tag=上报端口,desc=第一台默认端口，额外机器没写端口时也用这个
 token = ***,"",tag=上报 Token,desc=第一台 Token，在那台机器上运行 p token 得到
-extra = input,"",tag=更多机器,desc=可选。每行一台：地址|端口|Token。端口可省略。例 1.2.3.4|41741|abcd
+extra = input,"",tag=更多机器,desc=可选。每行一台：地址|端口|Token。端口可省略
 notify = switch,true,tag=IP 变化时通知,desc=某台上报成功且出口 IP 变化时发本地通知
 
 [Script]
-cron ${cron} then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${cron}, ${host}, ${port}, ${token}, ${extra}, ${notify}}) with tag="po0直连IP定时上报", timeout=30
+cron ${schedule} then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${schedule}, ${host}, ${port}, ${token}, ${extra}, ${notify}}) with tag="po0直连IP定时上报", timeout=30
 network-changed then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${host}, ${port}, ${token}, ${extra}, ${notify}}) with tag="po0网络变化上报", timeout=30
 generic then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${host}, ${port}, ${token}, ${extra}, ${notify}}) with tag="po0手动上报", img_url="network", timeout=30
