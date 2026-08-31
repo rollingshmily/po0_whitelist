@@ -113,6 +113,22 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("read_from_tty", script)
         self.assertIn("selected_codes=(\"${SELECTED_CODES[@]}\")", script)
 
+    def test_install_script_exposes_setup_and_p_shortcut(self):
+        script = INSTALL_SH.read_text(encoding="utf-8")
+
+        self.assertIn("./install.sh setup", script)
+        self.assertIn("install_shortcut()", script)
+        self.assertIn("/usr/local/bin/p", script)
+        self.assertIn("/opt/po0_whitelist", script)
+
+    def test_bootstrap_uses_china_github_mirrors(self):
+        bootstrap = (ROOT / "bootstrap.sh").read_text(encoding="utf-8")
+
+        self.assertIn("https://ghspeedup.com/", bootstrap)
+        self.assertIn("https://gh-proxy.com/", bootstrap)
+        self.assertIn("rollingshmily/po0_whitelist", bootstrap)
+        self.assertIn("install.sh\" setup", bootstrap)
+
     def test_firewall_lib_auto_installs_missing_iptables_and_ipset(self):
         script = FIREWALL_LIB.read_text(encoding="utf-8")
 

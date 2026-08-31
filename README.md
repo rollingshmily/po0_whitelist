@@ -10,12 +10,35 @@
 - `tools/region_tool.py`：本地数据解析和命令生成工具
 - `vendor/ipipfree.ipdb`：本地 ipdb 参考文件
 
-## 使用
+## 国内机器一键安装
 
-正式运行：
+po0 只能走国内网络时，用 GitHub 加速源安装（优先 `ghspeedup.com`，失败再试 `gh-proxy.com`）：
 
 ```bash
-sudo bash install.sh apply
+curl -fsSL https://ghspeedup.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/bootstrap.sh | sudo bash
+```
+
+若上一条失败：
+
+```bash
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/bootstrap.sh | sudo bash
+```
+
+安装完成后，在 VPS 上直接输入：
+
+```bash
+p
+```
+
+即可唤出白名单脚本。`p status`、`p clear`、`p dry-run` 同样可用。
+
+## 使用
+
+已经把项目放到服务器上时：
+
+```bash
+sudo bash install.sh setup   # 安装到 /opt/po0_whitelist 并添加命令 p
+sudo bash install.sh apply   # 或直接输入 p
 ```
 
 脚本会直接列出所有省份，例如 `1.北京市`、`19.广东省`。选择省份后会继续列出该省全部城市，例如 `1.广州市`、`3.深圳市`。你可以输入编号，也可以直接输入名称；多个选择用空格、英文逗号、中文逗号或顿号分隔。

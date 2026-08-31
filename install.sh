@@ -13,10 +13,12 @@ po0 省/市白名单一键脚本
   ./install.sh dry-run   交互选择地区，只打印将执行的命令
   ./install.sh status    查看当前托管规则
   ./install.sh clear     清除本脚本创建的规则和 ipset
+  ./install.sh setup     安装到本机并添加快捷命令 p
 
 说明：
   apply 会让未命中白名单的所有入站端口全部拒绝。
   建议先运行 dry-run，确认地区和命令后再 apply。
+  安装完成后可直接输入 p 唤出本脚本。
 EOF
 }
 
@@ -180,6 +182,48 @@ clear_rules() {
   echo "已清除本脚本管理的规则。"
 }
 
+PO0_INSTALL_DIR="${PO0_INSTALL_DIR:-/opt/po0_whitelist}"
+PO0_BIN="${PO0_BIN:-/usr/local/bin/p}"
+
+install_shortcut() {
+  local target_root="${1:-${ROOT}}"
+  po0_require_root
+  mkdir -p "$(dirname "${PO0_BIN}")"
+  cat > "${PO0_BIN}" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+INSTALL_SH="${target_root}/install.sh"
+if [[ ! -f "\${INSTALL_SH}" ]]; then
+  echo "未找到 \${INSTALL_SH}，请重新安装 po0_whitelist。" >&2
+  exit 1
+fi
+if [[ \$# -eq 0 ]]; then
+  set -- apply
+fi
+if [[ "\${EUID}" -ne 0 ]]; then
+  exec sudo -- bash "\${INSTALL_SH}" "\$@"
+fi
+exec bash "\${INSTALL_SH}" "\$@"
+EOF
+  chmod 755 "${PO0_BIN}"
+  echo "已安装快捷命令：p  ->  ${target_root}/install.sh"
+}
+
+setup_install() {
+  po0_require_root
+  if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
+    echo "未找到 python3/python，无法安装。" >&2
+    exit 1
+  fi
+  mkdir -p "${PO0_INSTALL_DIR}"
+  if [[ "$(cd "${ROOT}" && pwd)" != "$(cd "${PO0_INSTALL_DIR}" && pwd)" ]]; then
+    tar -C "${ROOT}" --exclude .git --exclude __pycache__ -cf - . | tar -C "${PO0_INSTALL_DIR}" -xf -
+  fi
+  chmod 755 "${PO0_INSTALL_DIR}/install.sh"
+  install_shortcut "${PO0_INSTALL_DIR}"
+  echo "安装完成。输入 p 即可唤出白名单脚本。"
+}
+
 main() {
   local command="${1:-apply}"
   case "${command}" in
@@ -187,6 +231,7 @@ main() {
     dry-run) run_apply_or_dry_run 1 ;;
     status) status_rules ;;
     clear) clear_rules ;;
+    setup|install) setup_install ;;
     -h|--help|help) usage ;;
     *) usage; exit 2 ;;
   esac
