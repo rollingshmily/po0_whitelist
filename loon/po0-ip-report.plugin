@@ -1,5 +1,5 @@
 #!name=po0 直连 IP 加白
-#!desc=v4：定时检查请填 Cron。三个脚本：定时 / 网络变化 / 手动。可填多台 po0。
+#!desc=定时/网络变化时，把本机 DIRECT 出口 IP 上报到 po0 白名单。请填写 po0 公网 IP、上报端口和 Token。 版本 v5
 #!author=rollingshmily
 #!homepage=https://github.com/rollingshmily/po0_whitelist
 #!tag=po0,whitelist

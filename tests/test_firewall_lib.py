@@ -149,6 +149,11 @@ class FirewallLibTests(unittest.TestCase):
     def test_loon_plugin_reports_via_direct(self):
         plugin = (ROOT / "loon" / "po0-ip-report.plugin").read_text(encoding="utf-8")
         script = (ROOT / "loon" / "po0-ip-report.js").read_text(encoding="utf-8")
+        self.assertIn(
+            "定时/网络变化时，把本机 DIRECT 出口 IP 上报到 po0 白名单。请填写 po0 公网 IP、上报端口和 Token。",
+            plugin,
+        )
+        self.assertIn("版本 v5", plugin)
         self.assertIn("network-changed then script(", plugin)
         self.assertIn("cron ${cron} then script(", plugin)
         self.assertIn("{${cron}, ${host}, ${port}, ${token}, ${extra}, ${notify}}", plugin)
