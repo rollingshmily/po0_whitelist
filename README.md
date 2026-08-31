@@ -62,7 +62,7 @@ https://ghspeedup.com/https://raw.githubusercontent.com/rollingshmily/po0_whitel
 https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin
 ```
 
-3. 填 po0 公网 IP、端口 `41741`、Token。插件每 5 分钟上报一次，网络切换也会上报，也可手动点「po0手动上报」。
+3. 填第一台 po0 的公网 IP、端口、Token。检查间隔默认 `*/5 * * * *`（每 5 分钟），可改成 `*/1 * * * *` 每分钟等。多台机器在「更多机器」里每行一台：`地址|端口|Token`。网络切换和手动上报同样会打到所有已填机器。
 
 查看已上报 IP：`p clients`
 

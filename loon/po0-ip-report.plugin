@@ -1,17 +1,19 @@
 #!name=po0 直连 IP 加白
-#!desc=定时/网络变化时，把本机 DIRECT 出口 IP 上报到 po0 白名单。请填写 po0 公网 IP、上报端口和 Token。
+#!desc=把本机 DIRECT 出口 IP 上报到一台或多台 po0。可自定义检查间隔。
 #!author=rollingshmily
 #!homepage=https://github.com/rollingshmily/po0_whitelist
 #!tag=po0,whitelist
 #!loon_version=3.5.1(983)
 
 [Argument]
-host = input,"",tag=po0 地址,desc=po0 的公网 IP 或域名，不要带 http://
-port = input,"41741",tag=上报端口,desc=默认 41741，需和 po0 上 p token 显示的端口一致
-token = input,"",tag=上报 Token,desc=在 po0 上运行 p token 得到
-notify = switch,true,tag=IP 变化时通知,desc=出口 IP 变化并上报成功后发本地通知
+cron = input,"*/5 * * * *",tag=检查间隔,desc=Cron，五段或六段。例 */5 * * * * 每5分钟，*/1 * * * * 每分钟，0 */2 * * * 每2小时
+host = input,"",tag=po0 地址,desc=第一台 po0 的公网 IP 或域名，不要带 http://
+port = input,"41741",tag=上报端口,desc=第一台默认端口，额外机器没写端口时也用这个
+token = ***,"",tag=上报 Token,desc=第一台 Token，在那台机器上运行 p token 得到
+extra = input,"",tag=更多机器,desc=可选。每行一台：地址|端口|Token。端口可省略。例 1.2.3.4|41741|abcd
+notify = switch,true,tag=IP 变化时通知,desc=某台上报成功且出口 IP 变化时发本地通知
 
 [Script]
-cron "*/5 * * * *" then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${host}, ${port}, ${token}, ${notify}}) with tag="po0直连IP定时上报", timeout=15
-network-changed then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${host}, ${port}, ${token}, ${notify}}) with tag="po0网络变化上报", timeout=15
-generic then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${host}, ${port}, ${token}, ${notify}}) with tag="po0手动上报", img_url="network", timeout=15
+cron ${cron} then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${cron}, ${host}, ${port}, ${token}, ${extra}, ${notify}}) with tag="po0直连IP定时上报", timeout=30
+network-changed then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${host}, ${port}, ${token}, ${extra}, ${notify}}) with tag="po0网络变化上报", timeout=30
+generic then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${host}, ${port}, ${token}, ${extra}, ${notify}}) with tag="po0手动上报", img_url="network", timeout=30

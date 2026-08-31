@@ -150,12 +150,14 @@ class FirewallLibTests(unittest.TestCase):
         plugin = (ROOT / "loon" / "po0-ip-report.plugin").read_text(encoding="utf-8")
         script = (ROOT / "loon" / "po0-ip-report.js").read_text(encoding="utf-8")
         self.assertIn("network-changed then script(", plugin)
-        self.assertIn('cron "*/5 * * * *" then script(', plugin)
-        self.assertIn("{${host}, ${port}, ${token}, ${notify}}", plugin)
+        self.assertIn("cron ${cron} then script(", plugin)
+        self.assertIn("{${cron}, ${host}, ${port}, ${token}, ${extra}, ${notify}}", plugin)
         self.assertIn("img_url=\"network\"", plugin)
         self.assertIn("gh-proxy.com", plugin)
         self.assertIn('node: "DIRECT"', script)
         self.assertIn("/report", script)
+        self.assertIn("parseTargets", script)
+        self.assertIn("extra", script)
 
     def test_github_fetch_uses_china_mirrors(self):
         fetch = (ROOT / "tools" / "github_fetch.sh").read_text(encoding="utf-8")
