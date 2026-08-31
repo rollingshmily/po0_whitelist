@@ -38,7 +38,7 @@ p
 p update
 ```
 
-`p update` 走 `ghspeedup.com` / `gh-proxy.com` 加速拉取最新包，只更新 `/opt/po0_whitelist` 里的文件，**不会自动改当前防火墙**。要让新 IP 段生效，再运行一次 `p`。
+`p update` 走 `ghspeedup.com` / `gh-proxy.com` 拉最新包，然后**按你上次选的省市自动重灌** ipset，不用再走交互。选择记录在 `/var/lib/po0_whitelist/last_selection.json`，第一次需要先 `p` 选一次。只想重灌不想拉仓库，用 `p reapply`。
 
 ## 使用
 

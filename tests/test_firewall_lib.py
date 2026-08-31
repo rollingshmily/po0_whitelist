@@ -113,13 +113,28 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("read_from_tty", script)
         self.assertIn("selected_codes=(\"${SELECTED_CODES[@]}\")", script)
 
+    def test_saves_and_loads_region_selection(self):
+        path = FIXTURES / "last_selection.json"
+        self.addCleanup(lambda: path.exists() and path.unlink())
+        saved = run_tool("save-selection", "--file", str(path), "990100", "990200")
+        self.assertEqual(saved.returncode, 0, saved.stderr)
+        loaded = run_tool("load-selection", "--file", str(path))
+        self.assertEqual(loaded.returncode, 0, loaded.stderr)
+        self.assertEqual(loaded.stdout.splitlines(), ["990100", "990200"])
+        described = run_tool("describe-codes", "990100")
+        self.assertEqual(described.returncode, 0, described.stderr)
+        self.assertIn("测试省/甲市", described.stdout)
+
     def test_install_script_exposes_setup_and_p_shortcut(self):
         script = INSTALL_SH.read_text(encoding="utf-8")
 
         self.assertIn("./install.sh setup", script)
         self.assertIn("./install.sh update", script)
+        self.assertIn("./install.sh reapply", script)
         self.assertIn("install_shortcut()", script)
         self.assertIn("update_from_github()", script)
+        self.assertIn("apply_saved_selection()", script)
+        self.assertIn("last_selection.json", script)
         self.assertIn("/usr/local/bin/p", script)
         self.assertIn("/opt/po0_whitelist", script)
         self.assertIn("tools/github_fetch.sh", script)

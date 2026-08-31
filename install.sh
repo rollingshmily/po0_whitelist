@@ -5,6 +5,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${ROOT}/tools/firewall_lib.sh"
 source "${ROOT}/tools/github_fetch.sh"
 
+PO0_INSTALL_DIR="${PO0_INSTALL_DIR:-/opt/po0_whitelist}"
+PO0_BIN="${PO0_BIN:-/usr/local/bin/p}"
+PO0_STATE_DIR="${PO0_STATE_DIR:-/var/lib/po0_whitelist}"
+PO0_SELECTION_FILE="${PO0_SELECTION_FILE:-${PO0_STATE_DIR}/last_selection.json}"
+
 usage() {
   cat <<'EOF'
 po0 省/市白名单一键脚本
@@ -15,13 +20,14 @@ po0 省/市白名单一键脚本
   ./install.sh status    查看当前托管规则
   ./install.sh clear     清除本脚本创建的规则和 ipset
   ./install.sh setup     安装到本机并添加快捷命令 p
-  ./install.sh update    通过国内加速源拉取仓库最新 IP 库和脚本
+  ./install.sh update    拉取最新 IP 库，并按上次选择的省市自动重灌
+  ./install.sh reapply   不拉仓库，按上次省市重新应用
 
 说明：
   apply 会让未命中白名单的所有入站端口全部拒绝。
   建议先运行 dry-run，确认地区和命令后再 apply。
-  安装完成后可直接输入 p 唤出本脚本，p update 可同步最新 IP 库。
-  update 只更新本地文件，不会自动改当前防火墙规则。
+  安装完成后可直接输入 p 唤出本脚本。
+  apply 成功后会记住所选省市；之后 p update 不用再选。
 EOF
 }
 
@@ -158,7 +164,50 @@ run_apply_or_dry_run() {
     exit 0
   fi
   po0_render_apply_commands "${client_ip}" "${selected_codes[@]}" | po0_run_rendered_commands
-  echo "规则已应用。"
+  save_selection "${selected_codes[@]}"
+  echo "规则已应用。已记住本次省市选择，之后 p update 会按这次自动重灌。"
+}
+
+save_selection() {
+  po0_region_tool save-selection --file "${PO0_SELECTION_FILE}" "$@"
+}
+
+load_selection_codes() {
+  po0_region_tool load-selection --file "${PO0_SELECTION_FILE}"
+}
+
+apply_saved_selection() {
+  local reason="${1:-reapply}"
+  if [[ ! -f "${PO0_SELECTION_FILE}" ]]; then
+    echo "还没有保存过省市选择。请先运行 p 交互选择一次。" >&2
+    return 1
+  fi
+
+  local -a selected_codes=()
+  local code
+  while IFS= read -r code; do
+    [[ -n "${code}" ]] || continue
+    selected_codes+=("${code}")
+  done < <(load_selection_codes)
+
+  if [[ "${#selected_codes[@]}" -eq 0 ]]; then
+    echo "保存的省市选择为空。" >&2
+    return 1
+  fi
+
+  echo "按上次选择重灌（${reason}）："
+  po0_region_tool describe-codes "${selected_codes[@]}"
+
+  local client_ip
+  client_ip="$(po0_detect_ssh_client_ip)"
+  if [[ -n "${client_ip}" ]]; then
+    echo "自动把当前 SSH 客户端 IP ${client_ip} 加入本次白名单，避免断连。"
+  fi
+
+  po0_require_root
+  po0_require_commands
+  po0_render_apply_commands "${client_ip}" "${selected_codes[@]}" | po0_run_rendered_commands
+  echo "已按上次省市选择重新应用规则。"
 }
 
 status_rules() {
@@ -184,9 +233,6 @@ clear_rules() {
   po0_render_clear_commands | po0_run_rendered_commands
   echo "已清除本脚本管理的规则。"
 }
-
-PO0_INSTALL_DIR="${PO0_INSTALL_DIR:-/opt/po0_whitelist}"
-PO0_BIN="${PO0_BIN:-/usr/local/bin/p}"
 
 install_shortcut() {
   local target_root="${1:-${ROOT}}"
@@ -246,7 +292,11 @@ update_from_github() {
     install_shortcut "${ROOT}"
   fi
   echo "已从 GitHub 同步最新 IP 库和脚本。"
-  echo "当前防火墙规则不会自动改动；需要生效请再运行 p 重新 apply。"
+  if [[ -f "${PO0_SELECTION_FILE}" ]]; then
+    apply_saved_selection update
+  else
+    echo "还没有保存过省市选择，防火墙未改。先运行 p 选一次即可。"
+  fi
 }
 
 main() {
@@ -258,6 +308,7 @@ main() {
     clear) clear_rules ;;
     setup|install) setup_install ;;
     update) update_from_github ;;
+    reapply) apply_saved_selection reapply ;;
     -h|--help|help) usage ;;
     *) usage; exit 2 ;;
   esac

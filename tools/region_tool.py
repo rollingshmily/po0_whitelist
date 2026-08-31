@@ -109,6 +109,31 @@ def find_region_file(metadata: dict, code: str) -> str:
     raise SystemExit(f"Unknown region code: {code}")
 
 
+def find_region_name(metadata: dict, code: str) -> str:
+    for province in metadata["provinces"]:
+        if str(province["code"]) == code:
+            return str(province["name"])
+        for city in province.get("cities", []):
+            if str(city["code"]) == code:
+                return f"{province['name']}/{city['name']}"
+    raise SystemExit(f"Unknown region code: {code}")
+
+
+def save_selection(path: Path, codes: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"codes": list(codes)}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def load_selection(path: Path) -> list[str]:
+    if not path.exists():
+        raise SystemExit(f"No saved selection: {path}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    codes = [str(code) for code in data.get("codes", []) if str(code).strip()]
+    if not codes:
+        raise SystemExit("saved selection is empty")
+    return codes
+
+
 def collect_cidrs(metadata: dict, data_dir: Path, codes: list[str]) -> list[str]:
     seen: set[str] = set()
     cidrs: list[str] = []
@@ -234,6 +259,16 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("codes", nargs="+")
 
     subparsers.add_parser("render-clear")
+
+    save_selection_parser = subparsers.add_parser("save-selection")
+    save_selection_parser.add_argument("--file", type=Path, required=True)
+    save_selection_parser.add_argument("codes", nargs="+")
+
+    load_selection_parser = subparsers.add_parser("load-selection")
+    load_selection_parser.add_argument("--file", type=Path, required=True)
+
+    describe = subparsers.add_parser("describe-codes")
+    describe.add_argument("codes", nargs="+")
     return parser
 
 
@@ -260,6 +295,15 @@ def main() -> int:
         print("\n".join(render_apply_commands(cidrs, args.client_ip)))
     elif args.command == "render-clear":
         print("\n".join(render_clear_commands()))
+    elif args.command == "save-selection":
+        for code in args.codes:
+            find_region_file(metadata, code)
+        save_selection(args.file, args.codes)
+    elif args.command == "load-selection":
+        print("\n".join(load_selection(args.file)))
+    elif args.command == "describe-codes":
+        for code in args.codes:
+            print(f"{code}\t{find_region_name(metadata, code)}")
     return 0
 
 
