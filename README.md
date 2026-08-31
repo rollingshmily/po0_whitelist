@@ -50,16 +50,16 @@ Loon 插件会用 **DIRECT** 访问 po0 的上报口（默认 `41741`），服�
 p token
 ```
 
-2. Loon 导入插件（国内加速）：
-
-```text
-https://ghspeedup.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin
-```
-
-不行再试：
+2. Loon 导入插件。先删掉旧插件，再用下面地址新装（ghspeedup 这条会 404，刷新等于没更新）：
 
 ```text
 https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin
+```
+
+备用：
+
+```text
+https://cdn.jsdelivr.net/gh/rollingshmily/po0_whitelist@main/loon/po0-ip-report.plugin
 ```
 
 3. 填第一台 po0 的公网 IP、端口、Token。检查间隔默认 `*/5 * * * *`（每 5 分钟），可改成 `*/1 * * * *` 每分钟等。多台机器在「更多机器」里每行一台：`地址|端口|Token`。网络切换和手动上报同样会打到所有已填机器。

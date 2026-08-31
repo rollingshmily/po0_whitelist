@@ -319,7 +319,7 @@ show_token() {
   ensure_report_token
   echo "上报端口: ${PO0_REPORT_PORT}"
   echo "Token: $(cat "${PO0_TOKEN_FILE}")"
-  echo "Loon 插件: https://ghspeedup.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin"
+  echo "Loon 插件: https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin"
 }
 
 show_clients() {
