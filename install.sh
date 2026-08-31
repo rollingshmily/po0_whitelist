@@ -10,9 +10,18 @@ PO0_BIN="${PO0_BIN:-/usr/local/bin/p}"
 PO0_STATE_DIR="${PO0_STATE_DIR:-/var/lib/po0_whitelist}"
 PO0_SELECTION_FILE="${PO0_SELECTION_FILE:-${PO0_STATE_DIR}/last_selection.json}"
 PO0_TOKEN_FILE="${PO0_TOKEN_FILE:-${PO0_STATE_DIR}/mailbox.token}"
-PO0_MAILBOX_HOST="${PO0_MAILBOX_HOST:-104.251.236.188}"
+PO0_MAILBOX_CONF="${PO0_MAILBOX_CONF:-${PO0_STATE_DIR}/mailbox.conf}"
+if [[ -f "${PO0_MAILBOX_CONF}" ]]; then
+  # shellcheck disable=SC1090
+  source "${PO0_MAILBOX_CONF}"
+fi
+PO0_MAILBOX_HOST="${PO0_MAILBOX_HOST:-}"
 PO0_MAILBOX_PORT="${PO0_MAILBOX_PORT:-18443}"
-PO0_MAILBOX_URL="${PO0_MAILBOX_URL:-http://${PO0_MAILBOX_HOST}:${PO0_MAILBOX_PORT}}"
+if [[ -n "${PO0_MAILBOX_HOST}" ]]; then
+  PO0_MAILBOX_URL="${PO0_MAILBOX_URL:-http://${PO0_MAILBOX_HOST}:${PO0_MAILBOX_PORT}}"
+else
+  PO0_MAILBOX_URL="${PO0_MAILBOX_URL:-}"
+fi
 
 usage() {
   cat <<'EOF'
@@ -26,16 +35,17 @@ po0 省/市白名单一键脚本
   ./install.sh setup     安装到本机并添加快捷命令 p
   ./install.sh update    拉取最新 IP 库，并按上次选择的省市自动重灌
   ./install.sh reapply   不拉仓库，按上次省市重新应用
-  ./install.sh token     显示 Loon 填到香港 CTC 信箱的地址和 Token
-  ./install.sh clients   查看已从信箱取回的直连 IP
-  ./install.sh pull      从香港 CTC 信箱拉取直连 IP 并写入 ipset
+  ./install.sh token            显示 Loon 要填的信箱地址和 Token
+  ./install.sh mailbox-config   配置海外信箱地址/端口/Token
+  ./install.sh clients          查看已从信箱取回的直连 IP
+  ./install.sh pull             从海外信箱拉取直连 IP 并写入 ipset
 
 说明：
   apply 会让未命中白名单的所有入站端口全部拒绝。
   建议先运行 dry-run，确认地区和命令后再 apply。
   安装完成后可直接输入 p 唤出本脚本。
   apply 成功后会记住所选省市；之后 p update 不用再选。
-  Loon 报到香港 CTC，po0 只出站拉取，国内机器不开 HTTP 口。
+  Loon 报到海外信箱，防火墙机器只出站拉取，国内机器不开 HTTP 口。
 EOF
 }
 
@@ -275,7 +285,7 @@ EOF
 ensure_mailbox_token() {
   mkdir -p "${PO0_STATE_DIR}"
   if [[ ! -s "${PO0_TOKEN_FILE}" ]]; then
-    echo "还没有信箱 Token。请先在香港 CTC 装信箱，再把同一把 Token 放到 ${PO0_TOKEN_FILE}" >&2
+    echo "还没有信箱 Token。请先在海外机器跑 mailbox-install.sh，再在本机执行 p mailbox-config" >&2
     return 1
   fi
   chmod 600 "${PO0_TOKEN_FILE}"
@@ -295,6 +305,10 @@ stop_legacy_report_service() {
 
 pull_mailbox() {
   po0_require_root
+  if [[ -z "${PO0_MAILBOX_URL}" ]]; then
+    echo "还没有配置信箱地址。请先执行：p mailbox-config" >&2
+    return 1
+  fi
   ensure_mailbox_token || return 1
   command -v ipset >/dev/null 2>&1 || po0_require_commands
   local token ips ip
@@ -302,7 +316,7 @@ pull_mailbox() {
   ips="$(curl -fsS --connect-timeout 8 --max-time 15 \
     -H "Authorization: Bearer ${token}" \
     "${PO0_MAILBOX_URL}/list")" || {
-    echo "从 CTC 信箱拉取失败：${PO0_MAILBOX_URL}/list" >&2
+    echo "从信箱拉取失败：${PO0_MAILBOX_URL}/list" >&2
     return 1
   }
   ipset create "${PO0_CLIENT_SET_NAME}" hash:ip family inet -exist
@@ -310,7 +324,7 @@ pull_mailbox() {
     [[ -n "${ip}" ]] || continue
     ipset add "${PO0_CLIENT_SET_NAME}" "${ip}" -exist
   done < <(python3 -c 'import json,sys; [print(ip) for ip in json.loads(sys.argv[1]).get("ips", [])]' "${ips}")
-  echo "已从 CTC 信箱同步直连 IP。"
+  echo "已从信箱同步直连 IP。"
 }
 
 install_pull_timer() {
@@ -320,7 +334,7 @@ install_pull_timer() {
   if command -v systemctl >/dev/null 2>&1 && [[ -d /etc/systemd/system ]]; then
     cat > /etc/systemd/system/po0-mailbox-pull.service <<EOF
 [Unit]
-Description=Pull po0 client IPs from CTC mailbox
+Description=Pull client IPs from overseas mailbox
 After=network-online.target
 
 [Service]
@@ -330,7 +344,7 @@ ExecStart=/bin/bash ${script_root}/install.sh pull
 EOF
     cat > /etc/systemd/system/po0-mailbox-pull.timer <<'EOF'
 [Unit]
-Description=Pull po0 client IPs from CTC mailbox every minute
+Description=Pull client IPs from overseas mailbox every minute
 
 [Timer]
 OnBootSec=20s
@@ -359,6 +373,35 @@ show_token() {
   echo "Loon 插件: https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin"
 }
 
+mailbox_config() {
+  po0_require_root
+  mkdir -p "${PO0_STATE_DIR}"
+  local host port token
+  host="$(read_from_tty "信箱公网 IP 或域名: ")"
+  port="$(read_from_tty "信箱端口 [18443]: ")"
+  token="$(read_from_tty "信箱 Token: ")"
+  port="${port:-18443}"
+  if [[ -z "${host}" || -z "${token}" ]]; then
+    echo "地址和 Token 不能为空。" >&2
+    exit 1
+  fi
+  cat > "${PO0_MAILBOX_CONF}" <<EOF
+PO0_MAILBOX_HOST=${host}
+PO0_MAILBOX_PORT=${port}
+PO0_MAILBOX_URL=http://${host}:${port}
+EOF
+  chmod 600 "${PO0_MAILBOX_CONF}"
+  printf '%s\n' "${token}" > "${PO0_TOKEN_FILE}"
+  chmod 600 "${PO0_TOKEN_FILE}"
+  PO0_MAILBOX_HOST="${host}"
+  PO0_MAILBOX_PORT="${port}"
+  PO0_MAILBOX_URL="http://${host}:${port}"
+  install_pull_timer
+  echo "信箱已配置。Loon 填地址 ${host}、端口 ${port}，Token 用刚才那把。"
+  echo "请给该信箱 IP 在 Loon 里走 DIRECT。"
+  pull_mailbox || true
+}
+
 show_clients() {
   po0_require_root
   if command -v ipset >/dev/null 2>&1; then
@@ -381,9 +424,11 @@ setup_install() {
   chmod 755 "${PO0_INSTALL_DIR}/install.sh"
   install_shortcut "${PO0_INSTALL_DIR}"
   stop_legacy_report_service
-  install_pull_timer
+  if [[ -f "${PO0_MAILBOX_CONF}" ]]; then
+    install_pull_timer
+  fi
   echo "安装完成。输入 p 即可唤出白名单脚本。"
-  echo "Loon 报到香港 CTC，配置看：p token"
+  echo "Loon 信箱请先在海外机器跑 mailbox-install.sh，再在本机 p mailbox-config"
 }
 
 update_from_github() {
@@ -423,6 +468,7 @@ main() {
     update) update_from_github ;;
     reapply) apply_saved_selection reapply ;;
     token) show_token ;;
+    mailbox-config) mailbox_config ;;
     clients) show_clients ;;
     pull) pull_mailbox ;;
     -h|--help|help) usage ;;

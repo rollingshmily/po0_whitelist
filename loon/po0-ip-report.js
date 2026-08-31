@@ -1,6 +1,5 @@
 /*
-  把 DIRECT 出口 IP 报到香港 CTC 信箱，不打国内 po0。
-  po0 再从 RFC 内网把名单取回。
+  把 DIRECT 出口 IP 报到海外信箱，不打国内防火墙机器。
 */
 
 function arg(name, fallback) {
@@ -120,7 +119,7 @@ function runQueue(targets, index, errors) {
 const targets = parseTargets();
 if (!targets.length) {
   if (notify) {
-    $notification.post("po0 加白失败", "", "请填写香港 CTC 地址和 Token");
+    $notification.post("po0 加白失败", "", "请填写信箱地址和 Token");
   }
   $done();
 } else {

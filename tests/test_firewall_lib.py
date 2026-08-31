@@ -143,10 +143,11 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("/opt/po0_whitelist", script)
         self.assertIn("tools/github_fetch.sh", script)
         self.assertIn("./install.sh token", script)
+        self.assertIn("mailbox-config", script)
         self.assertIn("pull_mailbox()", script)
         self.assertIn("stop_legacy_report_service()", script)
-        self.assertIn("104.251.236.188", script)
-        self.assertIn("18443", script)
+        self.assertNotIn("104.251.236.188", script)
+        self.assertNotIn("10.100.128.90", script)
         self.assertNotIn("install_report_service()", script)
 
     def test_loon_plugin_reports_via_direct(self):
@@ -171,10 +172,18 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("gh-proxy.com", plugin)
         self.assertIn('node: "DIRECT"', script)
         self.assertIn("/report", script)
-        self.assertIn("104.251.236.188", plugin)
-        self.assertIn("18443", plugin)
+        self.assertNotIn("104.251.236.188", plugin)
+        self.assertNotIn("10.100.128.90", plugin)
+        self.assertIn('host = input,""', plugin)
         self.assertIn("parseTargets", script)
         self.assertIn("extra", script)
+
+    def test_mailbox_install_is_generic(self):
+        script = (ROOT / "mailbox-install.sh").read_text(encoding="utf-8")
+        self.assertIn("监听端口", script)
+        self.assertIn("允许拉取名单的源 IP", script)
+        self.assertNotIn("104.251.236.188", script)
+        self.assertNotIn("10.100.128.90", script)
 
     def test_github_fetch_uses_china_mirrors(self):
         fetch = (ROOT / "tools" / "github_fetch.sh").read_text(encoding="utf-8")

@@ -1,56 +1,69 @@
 # po0 省/市白名单一键脚本
 
-这个项目用于在 po0 服务器上按中国地区 IP 段限制入站访问：只有交互选择的省份或城市可以访问服务器，其他来源访问任意端口都会被拒绝。脚本同时托管 `INPUT` 和 `FORWARD` 链，因此机器上的转发端口也会受到同一白名单限制。
+在国内服务器上按中国地区 IP 段限制入站：只有选中的省份或城市可以访问，其他来源访问任意端口都会被拒绝。脚本同时托管 `INPUT` 和 `FORWARD` 链。
+
+国内防火墙机器**不要开 HTTP 上报口**。Loon 把直连出口 IP 报到一台**海外信箱**，国内机器只出站把名单拉回来。
 
 ## 文件
 
-- `install.sh`：服务器上运行的一键脚本
+- `install.sh`：国内防火墙机器入口（`p`）
+- `mailbox-install.sh`：海外信箱安装
 - `data/regions.json`：省市索引
-- `data/regions/*.txt`：本地 CIDR 段
-- `tools/region_tool.py`：本地数据解析和命令生成工具
-- `vendor/ipipfree.ipdb`：本地 ipdb 参考文件
+- `data/regions/*.txt`：本地 CIDR
+- `tools/mailbox_server.py`：信箱服务
+- `loon/`：Loon 插件
+- `vendor/ipipfree.ipdb`：离线 ipdb 参考
 
-## 国内机器一键安装
+## 1. 海外信箱（先装）
 
-po0 只能走国内网络时，用 GitHub 加速源安装（优先 `ghspeedup.com`，失败再试 `gh-proxy.com`）：
+在一台能被手机直连、又能被国内机器访问的海外机器上：
+
+```bash
+curl -fsSL https://gh-proxy.com/https://github.com/rollingshmily/po0_whitelist/archive/refs/heads/main.tar.gz -o /tmp/po0.tar.gz
+tar -xzf /tmp/po0.tar.gz -C /tmp
+cd /tmp/po0_whitelist-main
+sudo bash mailbox-install.sh
+```
+
+交互会问：
+
+1. 监听端口（默认 `18443`）
+2. **允许拉取名单的源 IP**：填国内防火墙机器访问信箱时的源地址（内网就填内网 IP，可逗号分隔）
+
+装完会打印 Loon 要填的地址、端口、Token。Token 只出现在这台机器上，不要提交到 Git。
+
+## 2. 国内防火墙机器
 
 ```bash
 curl -fsSL https://ghspeedup.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/bootstrap.sh | sudo bash
 ```
 
-若上一条失败：
+失败再试：
 
 ```bash
 curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/bootstrap.sh | sudo bash
 ```
 
-安装完成后，在 VPS 上直接输入：
+然后：
 
 ```bash
-p
+p                  # 交互选择省市并 apply
+p mailbox-config   # 填海外信箱的地址、端口、Token
 ```
 
-即可唤出白名单脚本。`p status`、`p clear`、`p dry-run`、`p update`、`p token` 同样可用。
-
-仓库里的 IP 库更新后，在 po0 上同步：
+之后每分钟自动 `p pull`。也可手动：
 
 ```bash
-p update
+p token      # 给 Loon 看地址/端口/Token
+p pull       # 立刻从信箱拉 IP
+p clients    # 看已写入的直连 IP
+p update     # 用加速源更新省市 IP 库并按上次选择重灌
+p reapply    # 不拉仓库，按上次省市重灌
 ```
 
-`p update` 走 `ghspeedup.com` / `gh-proxy.com` 拉最新包，然后**按你上次选的省市自动重灌** ipset，不用再走交互。选择记录在 `/var/lib/po0_whitelist/last_selection.json`，第一次需要先 `p` 选一次。只想重灌不想拉仓库，用 `p reapply`。
+## 3. Loon 插件
 
-## Loon 自动上报直连 IP
-
-国内 po0 **不开 HTTP 口**。Loon 用 DIRECT 把出口 IP 报到香港 RFC CTC 信箱（`104.251.236.188:18443`），po0 再从 RFC 内网（源地址 `10.100.128.90`）把名单拉回来写入 `po0_client_ips`。
-
-1. po0 上先 `p` 完成一次省市 apply，再执行：
-
-```bash
-p token
-```
-
-2. Loon 导入插件。先删掉旧插件，再用下面地址新装（ghspeedup 这条会 404，刷新等于没更新）：
+删掉旧插件后导入：
 
 ```text
 https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin
@@ -62,30 +75,28 @@ https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whiteli
 https://cdn.jsdelivr.net/gh/rollingshmily/po0_whitelist@main/loon/po0-ip-report.plugin
 ```
 
-3. 信箱地址填 `104.251.236.188`，端口 `18443`，Token 用 `p token` 那把。不要填国内 po0 公网 IP。
+在插件设置里自己填：
 
-查看已上报 IP：`p clients`
+- 信箱地址：海外机器公网 IP
+- 信箱端口：和 `mailbox-install.sh` 一致
+- Token：安装信箱时打印的那把
+- 定时检查：Cron，默认 `*/5 * * * *`
+
+请给**信箱 IP** 配 Loon DIRECT，不要走代理。不要把国内防火墙机器的公网 IP 填进插件。
 
 ## 使用
 
 已经把项目放到服务器上时：
 
 ```bash
-sudo bash install.sh setup   # 安装到 /opt/po0_whitelist 并添加命令 p
-sudo bash install.sh apply   # 或直接输入 p
+sudo bash install.sh setup
+sudo bash install.sh apply
 ```
 
-脚本会直接列出所有省份，例如 `1.北京市`、`19.广东省`。选择省份后会继续列出该省全部城市，例如 `1.广州市`、`3.深圳市`。你可以输入编号，也可以直接输入名称；多个选择用空格、英文逗号、中文逗号或顿号分隔。
-
-查看状态：
+选择省份后可再选全省或若干城市。编号和名称都可以，多个用空格/逗号分隔。
 
 ```bash
 sudo bash install.sh status
-```
-
-清除规则：
-
-```bash
 sudo bash install.sh clear
 ```
 
@@ -93,14 +104,14 @@ sudo bash install.sh clear
 
 `apply` 会拒绝所有未命中白名单的入站流量，包括 SSH。脚本会检测当前 SSH 客户端 IP，并询问是否加入本次白名单，建议保留默认 `Y`。
 
-脚本运行时不访问外网。若服务器缺少 `iptables` 或 `ipset`，会自动使用系统默认软件源安装依赖。
+省市规则应用时不访问外网。缺少 `iptables`/`ipset` 时用系统默认软件源安装。
 
 ## 重新准备本地数据
 
-在有外网的机器上运行：
+在有外网的机器上：
 
 ```bash
 python tools/prepare_data.py --ipdb /path/to/ipipfree.ipdb
 ```
 
-然后把整个目录复制到服务器即可。
+然后把目录复制到防火墙机器。

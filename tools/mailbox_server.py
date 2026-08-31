@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hong Kong CTC mailbox: Loon reports here, po0 pulls over RFC intranet."""
+"""Overseas mailbox: Loon reports here, the firewall host pulls the list outbound."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ PORT = int(os.environ.get("PO0_MAILBOX_PORT", "18443"))
 BIND = os.environ.get("PO0_MAILBOX_BIND", "0.0.0.0")
 TOKEN_FILE = Path(os.environ.get("PO0_MAILBOX_TOKEN_FILE", "/var/lib/po0-mailbox/token"))
 STORE_FILE = Path(os.environ.get("PO0_MAILBOX_STORE", "/var/lib/po0-mailbox/clients.json"))
-PULL_ALLOW = os.environ.get("PO0_MAILBOX_PULL_ALLOW", "10.100.128.90")
+PULL_ALLOW = os.environ.get("PO0_MAILBOX_PULL_ALLOW", "")
 TTL_SEC = int(os.environ.get("PO0_MAILBOX_TTL_SEC", str(48 * 3600)))
 
 
