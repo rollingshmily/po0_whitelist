@@ -9,6 +9,7 @@ PO0_INSTALL_DIR="${PO0_INSTALL_DIR:-/opt/po0_whitelist}"
 PO0_BIN="${PO0_BIN:-/usr/local/bin/p}"
 PO0_STATE_DIR="${PO0_STATE_DIR:-/var/lib/po0_whitelist}"
 PO0_SELECTION_FILE="${PO0_SELECTION_FILE:-${PO0_STATE_DIR}/last_selection.json}"
+PO0_TOKEN_FILE="${PO0_TOKEN_FILE:-${PO0_STATE_DIR}/report.token}"
 
 usage() {
   cat <<'EOF'
@@ -22,12 +23,15 @@ po0 省/市白名单一键脚本
   ./install.sh setup     安装到本机并添加快捷命令 p
   ./install.sh update    拉取最新 IP 库，并按上次选择的省市自动重灌
   ./install.sh reapply   不拉仓库，按上次省市重新应用
+  ./install.sh token     显示 Loon 上报 Token 和端口
+  ./install.sh clients   查看已上报的直连 IP
 
 说明：
   apply 会让未命中白名单的所有入站端口全部拒绝。
   建议先运行 dry-run，确认地区和命令后再 apply。
   安装完成后可直接输入 p 唤出本脚本。
   apply 成功后会记住所选省市；之后 p update 不用再选。
+  上报端口默认 41741，对所有来源开放，用 Token 鉴权后把对端 IP 加白。
 EOF
 }
 
@@ -166,6 +170,7 @@ run_apply_or_dry_run() {
   po0_render_apply_commands "${client_ip}" "${selected_codes[@]}" | po0_run_rendered_commands
   save_selection "${selected_codes[@]}"
   echo "规则已应用。已记住本次省市选择，之后 p update 会按这次自动重灌。"
+  install_report_service "${ROOT}"
 }
 
 save_selection() {
@@ -207,6 +212,7 @@ apply_saved_selection() {
   po0_require_root
   po0_require_commands
   po0_render_apply_commands "${client_ip}" "${selected_codes[@]}" | po0_run_rendered_commands
+  install_report_service "${ROOT}"
   echo "已按上次省市选择重新应用规则。"
 }
 
@@ -258,6 +264,73 @@ EOF
   echo "已安装快捷命令：p  ->  ${target_root}/install.sh"
 }
 
+ensure_report_token() {
+  mkdir -p "${PO0_STATE_DIR}"
+  if [[ ! -s "${PO0_TOKEN_FILE}" ]]; then
+    if command -v openssl >/dev/null 2>&1; then
+      openssl rand -hex 16 > "${PO0_TOKEN_FILE}"
+    else
+      python3 -c 'import secrets; print(secrets.token_hex(16))' > "${PO0_TOKEN_FILE}"
+    fi
+    chmod 600 "${PO0_TOKEN_FILE}"
+  fi
+}
+
+install_report_service() {
+  local script_root="${1:-${ROOT}}"
+  po0_require_root
+  ensure_report_token
+  chmod 755 "${script_root}/tools/report_server.py"
+  if command -v systemctl >/dev/null 2>&1 && [[ -d /etc/systemd/system ]]; then
+    cat > /etc/systemd/system/po0-report.service <<EOF
+[Unit]
+Description=po0 whitelist IP report API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PO0_REPORT_PORT=${PO0_REPORT_PORT}
+Environment=PO0_TOKEN_FILE=${PO0_TOKEN_FILE}
+Environment=PO0_CLIENT_SET_NAME=${PO0_CLIENT_SET_NAME}
+Environment=PO0_CLIENT_SAVE=${PO0_STATE_DIR}/client.ipset
+ExecStartPre=/bin/sh -c '/sbin/ipset create ${PO0_CLIENT_SET_NAME} hash:ip family inet -exist; if [ -s ${PO0_STATE_DIR}/client.ipset ]; then /sbin/ipset restore -exist -f ${PO0_STATE_DIR}/client.ipset; fi'
+ExecStart=/usr/bin/python3 ${script_root}/tools/report_server.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable --now po0-report.service
+  else
+    if [[ -f "${PO0_STATE_DIR}/report.pid" ]] && kill -0 "$(cat "${PO0_STATE_DIR}/report.pid")" 2>/dev/null; then
+      return 0
+    fi
+    nohup python3 "${script_root}/tools/report_server.py" >>"${PO0_STATE_DIR}/report.log" 2>&1 &
+    echo $! > "${PO0_STATE_DIR}/report.pid"
+  fi
+}
+
+show_token() {
+  po0_require_root
+  ensure_report_token
+  echo "上报端口: ${PO0_REPORT_PORT}"
+  echo "Token: $(cat "${PO0_TOKEN_FILE}")"
+  echo "Loon 插件: https://ghspeedup.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin"
+}
+
+show_clients() {
+  po0_require_root
+  if command -v ipset >/dev/null 2>&1; then
+    ipset list "${PO0_CLIENT_SET_NAME}" 2>/dev/null || echo "还没有已上报的直连 IP"
+  else
+    echo "ipset 未安装"
+  fi
+}
+
 setup_install() {
   po0_require_root
   if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
@@ -268,9 +341,11 @@ setup_install() {
   if [[ "$(cd "${ROOT}" && pwd)" != "$(cd "${PO0_INSTALL_DIR}" && pwd)" ]]; then
     tar -C "${ROOT}" --exclude .git --exclude __pycache__ -cf - . | tar -C "${PO0_INSTALL_DIR}" -xf -
   fi
-  chmod 755 "${PO0_INSTALL_DIR}/install.sh"
+  chmod 755 "${PO0_INSTALL_DIR}/install.sh" "${PO0_INSTALL_DIR}/tools/report_server.py"
   install_shortcut "${PO0_INSTALL_DIR}"
+  install_report_service "${PO0_INSTALL_DIR}"
   echo "安装完成。输入 p 即可唤出白名单脚本。"
+  echo "Loon 上报配置请运行：p token"
 }
 
 update_from_github() {
@@ -309,6 +384,8 @@ main() {
     setup|install) setup_install ;;
     update) update_from_github ;;
     reapply) apply_saved_selection reapply ;;
+    token) show_token ;;
+    clients) show_clients ;;
     -h|--help|help) usage ;;
     *) usage; exit 2 ;;
   esac

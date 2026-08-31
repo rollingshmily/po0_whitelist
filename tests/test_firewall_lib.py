@@ -55,6 +55,9 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("ipset create po0_region_whitelist hash:net family inet -exist", result.stdout)
         self.assertIn("ipset add po0_region_whitelist 10.0.0.0/8 -exist", result.stdout)
         self.assertIn("ipset add po0_region_whitelist 198.51.100.88 -exist", result.stdout)
+        self.assertIn("ipset create po0_client_ips hash:ip family inet -exist", result.stdout)
+        self.assertIn("iptables -A PO0_REGION_WHITELIST -p tcp --dport 41741 -j ACCEPT", result.stdout)
+        self.assertIn("iptables -A PO0_REGION_WHITELIST -m set --match-set po0_client_ips src -j ACCEPT", result.stdout)
         self.assertIn("iptables -A PO0_REGION_WHITELIST -m set --match-set po0_region_whitelist src -j ACCEPT", result.stdout)
         self.assertIn("iptables -A PO0_REGION_WHITELIST -j REJECT", result.stdout)
 
@@ -77,6 +80,7 @@ class FirewallLibTests(unittest.TestCase):
             "do iptables -D FORWARD -j PO0_REGION_WHITELIST; done",
             result.stdout,
         )
+        self.assertNotIn("ipset destroy po0_client_ips", result.stdout)
 
     def test_show_provinces_renders_cli_table(self):
         result = run_tool("show-provinces")
@@ -138,6 +142,18 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("/usr/local/bin/p", script)
         self.assertIn("/opt/po0_whitelist", script)
         self.assertIn("tools/github_fetch.sh", script)
+        self.assertIn("./install.sh token", script)
+        self.assertIn("install_report_service()", script)
+        self.assertIn("41741", script)
+
+    def test_loon_plugin_reports_via_direct(self):
+        plugin = (ROOT / "loon" / "po0-ip-report.plugin").read_text(encoding="utf-8")
+        script = (ROOT / "loon" / "po0-ip-report.js").read_text(encoding="utf-8")
+        self.assertIn("network-changed", plugin)
+        self.assertIn("cron \"*/5 * * * *\"", plugin)
+        self.assertIn("gh-proxy.com", plugin)
+        self.assertIn('node: "DIRECT"', script)
+        self.assertIn("/report", script)
 
     def test_github_fetch_uses_china_mirrors(self):
         fetch = (ROOT / "tools" / "github_fetch.sh").read_text(encoding="utf-8")

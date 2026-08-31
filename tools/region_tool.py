@@ -13,8 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REGIONS_JSON = ROOT / "data" / "regions.json"
 DEFAULT_DATA_DIR = ROOT / "data"
 SET_NAME = "po0_region_whitelist"
+CLIENT_SET_NAME = "po0_client_ips"
 CHAIN_NAME = "PO0_REGION_WHITELIST"
 ENTRY_CHAINS = ("INPUT", "FORWARD")
+DEFAULT_REPORT_PORT = 41741
 
 
 def load_metadata(regions_json: Path) -> dict:
@@ -156,10 +158,15 @@ def collect_cidrs(metadata: dict, data_dir: Path, codes: list[str]) -> list[str]
     return cidrs
 
 
-def render_apply_commands(cidrs: list[str], client_ip: str = "") -> list[str]:
+def render_apply_commands(
+    cidrs: list[str], client_ip: str = "", report_port: int = DEFAULT_REPORT_PORT
+) -> list[str]:
+    if report_port < 1 or report_port > 65535:
+        raise SystemExit(f"invalid report port: {report_port}")
     commands = [
         f"ipset create {SET_NAME} hash:net family inet -exist",
         f"ipset flush {SET_NAME}",
+        f"ipset create {CLIENT_SET_NAME} hash:ip family inet -exist",
     ]
     for cidr in cidrs:
         commands.append(f"ipset add {SET_NAME} {cidr} -exist")
@@ -182,6 +189,8 @@ def render_apply_commands(cidrs: list[str], client_ip: str = "") -> list[str]:
         [
             f"iptables -A {CHAIN_NAME} -i lo -j ACCEPT",
             f"iptables -A {CHAIN_NAME} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT",
+            f"iptables -A {CHAIN_NAME} -p tcp --dport {report_port} -j ACCEPT",
+            f"iptables -A {CHAIN_NAME} -m set --match-set {CLIENT_SET_NAME} src -j ACCEPT",
             f"iptables -A {CHAIN_NAME} -m set --match-set {SET_NAME} src -j ACCEPT",
             f"iptables -A {CHAIN_NAME} -j REJECT",
         ]
@@ -256,6 +265,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     render = subparsers.add_parser("render-apply")
     render.add_argument("--client-ip", default="")
+    render.add_argument("--report-port", type=int, default=DEFAULT_REPORT_PORT)
     render.add_argument("codes", nargs="+")
 
     subparsers.add_parser("render-clear")
@@ -292,7 +302,7 @@ def main() -> int:
         print("\n".join(collect_cidrs(metadata, args.data_dir, args.codes)))
     elif args.command == "render-apply":
         cidrs = collect_cidrs(metadata, args.data_dir, args.codes)
-        print("\n".join(render_apply_commands(cidrs, args.client_ip)))
+        print("\n".join(render_apply_commands(cidrs, args.client_ip, args.report_port)))
     elif args.command == "render-clear":
         print("\n".join(render_clear_commands()))
     elif args.command == "save-selection":

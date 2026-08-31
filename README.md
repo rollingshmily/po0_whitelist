@@ -30,7 +30,7 @@ curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/
 p
 ```
 
-即可唤出白名单脚本。`p status`、`p clear`、`p dry-run`、`p update` 同样可用。
+即可唤出白名单脚本。`p status`、`p clear`、`p dry-run`、`p update`、`p token` 同样可用。
 
 仓库里的 IP 库更新后，在 po0 上同步：
 
@@ -39,6 +39,32 @@ p update
 ```
 
 `p update` 走 `ghspeedup.com` / `gh-proxy.com` 拉最新包，然后**按你上次选的省市自动重灌** ipset，不用再走交互。选择记录在 `/var/lib/po0_whitelist/last_selection.json`，第一次需要先 `p` 选一次。只想重灌不想拉仓库，用 `p reapply`。
+
+## Loon 自动上报直连 IP
+
+Loon 插件会用 **DIRECT** 访问 po0 的上报口（默认 `41741`），服务器按连接来源 IP 加白。这个端口对所有来源开放，靠 Token 鉴权；加进去的 IP 进独立集合 `po0_client_ips`，省市重灌时不会被清掉。
+
+1. po0 上先 `p` 完成一次省市 apply，再执行：
+
+```bash
+p token
+```
+
+2. Loon 导入插件（国内加速）：
+
+```text
+https://ghspeedup.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin
+```
+
+不行再试：
+
+```text
+https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin
+```
+
+3. 填 po0 公网 IP、端口 `41741`、Token。插件每 5 分钟上报一次，网络切换也会上报，也可手动点「po0手动上报」。
+
+查看已上报 IP：`p clients`
 
 ## 使用
 
