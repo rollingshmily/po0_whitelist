@@ -3,6 +3,7 @@
 #!author=rollingshmily
 #!homepage=https://github.com/rollingshmily/po0_whitelist
 #!tag=po0,whitelist
+#!loon_version=3.5.1(983)
 
 [Argument]
 host = input,"",tag=po0 地址,desc=po0 的公网 IP 或域名，不要带 http://
@@ -11,6 +12,6 @@ token = input,"",tag=上报 Token,desc=在 po0 上运行 p token 得到
 notify = switch,true,tag=IP 变化时通知,desc=出口 IP 变化并上报成功后发本地通知
 
 [Script]
-cron "*/5 * * * *" script-path=https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js,timeout=15,tag=po0直连IP定时上报,argument=[{host},{port},{token},{notify}]
-network-changed script-path=https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js,timeout=15,tag=po0网络变化上报,argument=[{host},{port},{token},{notify}]
-generic script-path=https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js,timeout=15,tag=po0手动上报,img-url=network,argument=[{host},{port},{token},{notify}]
+cron "*/5 * * * *" then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${host}, ${port}, ${token}, ${notify}}) with tag="po0直连IP定时上报", timeout=15
+network-changed then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${host}, ${port}, ${token}, ${notify}}) with tag="po0网络变化上报", timeout=15
+generic then script("https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.js", {${host}, ${port}, ${token}, ${notify}}) with tag="po0手动上报", img_url="network", timeout=15

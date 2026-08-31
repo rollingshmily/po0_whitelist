@@ -149,8 +149,10 @@ class FirewallLibTests(unittest.TestCase):
     def test_loon_plugin_reports_via_direct(self):
         plugin = (ROOT / "loon" / "po0-ip-report.plugin").read_text(encoding="utf-8")
         script = (ROOT / "loon" / "po0-ip-report.js").read_text(encoding="utf-8")
-        self.assertIn("network-changed", plugin)
-        self.assertIn("cron \"*/5 * * * *\"", plugin)
+        self.assertIn("network-changed then script(", plugin)
+        self.assertIn('cron "*/5 * * * *" then script(', plugin)
+        self.assertIn("{${host}, ${port}, ${token}, ${notify}}", plugin)
+        self.assertIn("img_url=\"network\"", plugin)
         self.assertIn("gh-proxy.com", plugin)
         self.assertIn('node: "DIRECT"', script)
         self.assertIn("/report", script)

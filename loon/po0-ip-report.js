@@ -13,7 +13,7 @@ function arg(name, fallback) {
 const host = arg("host", "");
 const port = arg("port", "41741");
 const token = arg("token", "");
-const notify = arg("notify", "true") !== "false";
+const notify = !( $argument && ($argument.notify === false || $argument.notify === "false") );
 
 function done() {
   $done();
