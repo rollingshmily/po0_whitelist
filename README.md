@@ -42,7 +42,7 @@ p update
 
 ## Loon 自动上报直连 IP
 
-Loon 插件会用 **DIRECT** 访问 po0 的上报口（默认 `41741`），服务器按连接来源 IP 加白。这个端口对所有来源开放，靠 Token 鉴权；加进去的 IP 进独立集合 `po0_client_ips`，省市重灌时不会被清掉。
+国内 po0 **不开 HTTP 口**。Loon 用 DIRECT 把出口 IP 报到香港 RFC CTC 信箱（`104.251.236.188:18443`），po0 再从 RFC 内网（源地址 `10.100.128.90`）把名单拉回来写入 `po0_client_ips`。
 
 1. po0 上先 `p` 完成一次省市 apply，再执行：
 
@@ -62,7 +62,7 @@ https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whiteli
 https://cdn.jsdelivr.net/gh/rollingshmily/po0_whitelist@main/loon/po0-ip-report.plugin
 ```
 
-3. 填第一台 po0 的公网 IP、端口、Token。检查间隔默认 `*/5 * * * *`（每 5 分钟），可改成 `*/1 * * * *` 每分钟等。多台机器在「更多机器」里每行一台：`地址|端口|Token`。网络切换和手动上报同样会打到所有已填机器。
+3. 信箱地址填 `104.251.236.188`，端口 `18443`，Token 用 `p token` 那把。不要填国内 po0 公网 IP。
 
 查看已上报 IP：`p clients`
 
