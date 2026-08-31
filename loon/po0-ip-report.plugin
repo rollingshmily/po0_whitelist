@@ -1,7 +1,8 @@
 #!name=po0 直连 IP 加白
-#!desc=定时/网络变化时，把本机 DIRECT 出口 IP 上报到 po0 白名单。请填写 po0 公网 IP、上报端口和 Token。 版本 v5
+#!desc=定时/网络变化时，把本机 DIRECT 出口 IP 上报到 po0 白名单。请填写 po0 公网 IP、上报端口和 Token。
 #!author=rollingshmily
 #!homepage=https://github.com/rollingshmily/po0_whitelist
+#!date=版本日期：2026-09-01 03:13 v1.5
 #!tag=po0,whitelist
 #!loon_version=3.5.1(983)
 
