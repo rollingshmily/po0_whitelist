@@ -9,7 +9,10 @@ PO0_INSTALL_DIR="${PO0_INSTALL_DIR:-/opt/po0_whitelist}"
 PO0_BIN="${PO0_BIN:-/usr/local/bin/p}"
 PO0_STATE_DIR="${PO0_STATE_DIR:-/var/lib/po0_whitelist}"
 PO0_SELECTION_FILE="${PO0_SELECTION_FILE:-${PO0_STATE_DIR}/last_selection.json}"
-PO0_TOKEN_FILE="${PO0_TOKEN_FILE:-${PO0_STATE_DIR}/report.token}"
+PO0_TOKEN_FILE="${PO0_TOKEN_FILE:-${PO0_STATE_DIR}/mailbox.token}"
+PO0_MAILBOX_HOST="${PO0_MAILBOX_HOST:-104.251.236.188}"
+PO0_MAILBOX_PORT="${PO0_MAILBOX_PORT:-18443}"
+PO0_MAILBOX_URL="${PO0_MAILBOX_URL:-http://${PO0_MAILBOX_HOST}:${PO0_MAILBOX_PORT}}"
 
 usage() {
   cat <<'EOF'
@@ -23,15 +26,16 @@ po0 省/市白名单一键脚本
   ./install.sh setup     安装到本机并添加快捷命令 p
   ./install.sh update    拉取最新 IP 库，并按上次选择的省市自动重灌
   ./install.sh reapply   不拉仓库，按上次省市重新应用
-  ./install.sh token     显示 Loon 上报 Token 和端口
-  ./install.sh clients   查看已上报的直连 IP
+  ./install.sh token     显示 Loon 填到香港 CTC 信箱的地址和 Token
+  ./install.sh clients   查看已从信箱取回的直连 IP
+  ./install.sh pull      从香港 CTC 信箱拉取直连 IP 并写入 ipset
 
 说明：
   apply 会让未命中白名单的所有入站端口全部拒绝。
   建议先运行 dry-run，确认地区和命令后再 apply。
   安装完成后可直接输入 p 唤出本脚本。
   apply 成功后会记住所选省市；之后 p update 不用再选。
-  上报端口默认 41741，对所有来源开放，用 Token 鉴权后把对端 IP 加白。
+  Loon 报到香港 CTC，po0 只出站拉取，国内机器不开 HTTP 口。
 EOF
 }
 
@@ -170,7 +174,9 @@ run_apply_or_dry_run() {
   po0_render_apply_commands "${client_ip}" "${selected_codes[@]}" | po0_run_rendered_commands
   save_selection "${selected_codes[@]}"
   echo "规则已应用。已记住本次省市选择，之后 p update 会按这次自动重灌。"
-  install_report_service "${ROOT}"
+  stop_legacy_report_service
+  install_pull_timer
+  pull_mailbox || true
 }
 
 save_selection() {
@@ -212,7 +218,9 @@ apply_saved_selection() {
   po0_require_root
   po0_require_commands
   po0_render_apply_commands "${client_ip}" "${selected_codes[@]}" | po0_run_rendered_commands
-  install_report_service "${ROOT}"
+  stop_legacy_report_service
+  install_pull_timer
+  pull_mailbox || true
   echo "已按上次省市选择重新应用规则。"
 }
 
@@ -264,60 +272,89 @@ EOF
   echo "已安装快捷命令：p  ->  ${target_root}/install.sh"
 }
 
-ensure_report_token() {
+ensure_mailbox_token() {
   mkdir -p "${PO0_STATE_DIR}"
   if [[ ! -s "${PO0_TOKEN_FILE}" ]]; then
-    if command -v openssl >/dev/null 2>&1; then
-      openssl rand -hex 16 > "${PO0_TOKEN_FILE}"
-    else
-      python3 -c 'import secrets; print(secrets.token_hex(16))' > "${PO0_TOKEN_FILE}"
-    fi
-    chmod 600 "${PO0_TOKEN_FILE}"
+    echo "还没有信箱 Token。请先在香港 CTC 装信箱，再把同一把 Token 放到 ${PO0_TOKEN_FILE}" >&2
+    return 1
+  fi
+  chmod 600 "${PO0_TOKEN_FILE}"
+}
+
+stop_legacy_report_service() {
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl disable --now po0-report.service 2>/dev/null || true
+    rm -f /etc/systemd/system/po0-report.service
+    systemctl daemon-reload 2>/dev/null || true
+  fi
+  if [[ -f "${PO0_STATE_DIR}/report.pid" ]]; then
+    kill "$(cat "${PO0_STATE_DIR}/report.pid")" 2>/dev/null || true
+    rm -f "${PO0_STATE_DIR}/report.pid"
   fi
 }
 
-install_report_service() {
-  local script_root="${1:-${ROOT}}"
+pull_mailbox() {
   po0_require_root
-  ensure_report_token
-  chmod 755 "${script_root}/tools/report_server.py"
+  ensure_mailbox_token || return 1
+  command -v ipset >/dev/null 2>&1 || po0_require_commands
+  local token ips ip
+  token="$(cat "${PO0_TOKEN_FILE}")"
+  ips="$(curl -fsS --connect-timeout 8 --max-time 15 \
+    -H "Authorization: Bearer ${token}" \
+    "${PO0_MAILBOX_URL}/list")" || {
+    echo "从 CTC 信箱拉取失败：${PO0_MAILBOX_URL}/list" >&2
+    return 1
+  }
+  ipset create "${PO0_CLIENT_SET_NAME}" hash:ip family inet -exist
+  while IFS= read -r ip; do
+    [[ -n "${ip}" ]] || continue
+    ipset add "${PO0_CLIENT_SET_NAME}" "${ip}" -exist
+  done < <(python3 -c 'import json,sys; [print(ip) for ip in json.loads(sys.argv[1]).get("ips", [])]' "${ips}")
+  echo "已从 CTC 信箱同步直连 IP。"
+}
+
+install_pull_timer() {
+  po0_require_root
+  local script_root="${PO0_INSTALL_DIR}"
+  [[ -x "${script_root}/install.sh" ]] || script_root="${ROOT}"
   if command -v systemctl >/dev/null 2>&1 && [[ -d /etc/systemd/system ]]; then
-    cat > /etc/systemd/system/po0-report.service <<EOF
+    cat > /etc/systemd/system/po0-mailbox-pull.service <<EOF
 [Unit]
-Description=po0 whitelist IP report API
+Description=Pull po0 client IPs from CTC mailbox
 After=network-online.target
-Wants=network-online.target
 
 [Service]
-Type=simple
+Type=oneshot
 Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
-Environment=PO0_REPORT_PORT=${PO0_REPORT_PORT}
-Environment=PO0_TOKEN_FILE=${PO0_TOKEN_FILE}
-Environment=PO0_CLIENT_SET_NAME=${PO0_CLIENT_SET_NAME}
-Environment=PO0_CLIENT_SAVE=${PO0_STATE_DIR}/client.ipset
-ExecStartPre=/bin/sh -c '/sbin/ipset create ${PO0_CLIENT_SET_NAME} hash:ip family inet -exist; if [ -s ${PO0_STATE_DIR}/client.ipset ]; then /sbin/ipset restore -exist -f ${PO0_STATE_DIR}/client.ipset; fi'
-ExecStart=/usr/bin/python3 ${script_root}/tools/report_server.py
-Restart=on-failure
-RestartSec=3
+ExecStart=/bin/bash ${script_root}/install.sh pull
+EOF
+    cat > /etc/systemd/system/po0-mailbox-pull.timer <<'EOF'
+[Unit]
+Description=Pull po0 client IPs from CTC mailbox every minute
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=60s
+AccuracySec=10s
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=timers.target
 EOF
     systemctl daemon-reload
-    systemctl enable --now po0-report.service
-  else
-    if [[ -f "${PO0_STATE_DIR}/report.pid" ]] && kill -0 "$(cat "${PO0_STATE_DIR}/report.pid")" 2>/dev/null; then
-      return 0
-    fi
-    nohup python3 "${script_root}/tools/report_server.py" >>"${PO0_STATE_DIR}/report.log" 2>&1 &
-    echo $! > "${PO0_STATE_DIR}/report.pid"
+    systemctl enable --now po0-mailbox-pull.timer
   fi
 }
 
 show_token() {
   po0_require_root
-  ensure_report_token
-  echo "上报端口: ${PO0_REPORT_PORT}"
+  if [[ ! -s "${PO0_TOKEN_FILE}" ]]; then
+    echo "信箱 Token 还没放到 ${PO0_TOKEN_FILE}"
+    echo "Loon 信箱地址: ${PO0_MAILBOX_HOST}"
+    echo "Loon 信箱端口: ${PO0_MAILBOX_PORT}"
+    return 1
+  fi
+  echo "Loon 信箱地址: ${PO0_MAILBOX_HOST}"
+  echo "Loon 信箱端口: ${PO0_MAILBOX_PORT}"
   echo "Token: $(cat "${PO0_TOKEN_FILE}")"
   echo "Loon 插件: https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin"
 }
@@ -341,11 +378,12 @@ setup_install() {
   if [[ "$(cd "${ROOT}" && pwd)" != "$(cd "${PO0_INSTALL_DIR}" && pwd)" ]]; then
     tar -C "${ROOT}" --exclude .git --exclude __pycache__ -cf - . | tar -C "${PO0_INSTALL_DIR}" -xf -
   fi
-  chmod 755 "${PO0_INSTALL_DIR}/install.sh" "${PO0_INSTALL_DIR}/tools/report_server.py"
+  chmod 755 "${PO0_INSTALL_DIR}/install.sh"
   install_shortcut "${PO0_INSTALL_DIR}"
-  install_report_service "${PO0_INSTALL_DIR}"
+  stop_legacy_report_service
+  install_pull_timer
   echo "安装完成。输入 p 即可唤出白名单脚本。"
-  echo "Loon 上报配置请运行：p token"
+  echo "Loon 报到香港 CTC，配置看：p token"
 }
 
 update_from_github() {
@@ -386,6 +424,7 @@ main() {
     reapply) apply_saved_selection reapply ;;
     token) show_token ;;
     clients) show_clients ;;
+    pull) pull_mailbox ;;
     -h|--help|help) usage ;;
     *) usage; exit 2 ;;
   esac

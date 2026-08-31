@@ -1,6 +1,6 @@
 /*
-  po0 直连出口 IP 上报。
-  必须用 node=DIRECT。支持一台或多台机器顺序上报。
+  把 DIRECT 出口 IP 报到香港 CTC 信箱，不打国内 po0。
+  po0 再从 RFC 内网把名单取回。
 */
 
 function arg(name, fallback) {
@@ -10,7 +10,7 @@ function arg(name, fallback) {
   return fallback;
 }
 
-const defaultPort = arg("port", "41741");
+const defaultPort = arg("port", "18443");
 const notify = !($argument && ($argument.notify === false || $argument.notify === "false"));
 
 function parseTargets() {
@@ -20,34 +20,24 @@ function parseTargets() {
   if (host && token) {
     targets.push({ host: host, port: defaultPort, token: token });
   }
-  const extra = arg("extra", "");
-  extra.split(/[\n,;]+/).forEach(function (line) {
-    line = String(line || "").trim();
-    if (!line || line.indexOf("#") === 0) {
-      return;
-    }
-    const parts = line.split("|").map(function (part) {
-      return part.trim();
+  arg("extra", "")
+    .split(/[\n,;]+/)
+    .forEach(function (line) {
+      line = String(line || "").trim();
+      if (!line || line.indexOf("#") === 0) {
+        return;
+      }
+      const parts = line.split("|").map(function (part) {
+        return part.trim();
+      });
+      if (parts.length === 2) {
+        targets.push({ host: parts[0], port: defaultPort, token: parts[1] });
+        return;
+      }
+      if (parts.length >= 3) {
+        targets.push({ host: parts[0], port: parts[1] || defaultPort, token: parts[2] });
+      }
     });
-    if (parts.length === 1 && parts[0].indexOf(" ") >= 0) {
-      const spaced = parts[0].split(/\s+/);
-      parts.length = 0;
-      spaced.forEach(function (item) {
-        parts.push(item);
-      });
-    }
-    if (parts.length === 2) {
-      targets.push({ host: parts[0], port: defaultPort, token: parts[1] });
-      return;
-    }
-    if (parts.length >= 3) {
-      targets.push({
-        host: parts[0],
-        port: parts[1] || defaultPort,
-        token: parts[2],
-      });
-    }
-  });
   const seen = {};
   return targets.filter(function (item) {
     if (!item.host || !item.token) {
@@ -73,7 +63,7 @@ function postOne(target, callback) {
       url: url,
       timeout: 8000,
       headers: {
-        Authorization: "***" + target.token,
+        Authorization: "Bearer " + target.token,
         "Content-Type": "application/json",
       },
       body: "{}",
@@ -104,7 +94,7 @@ function postOne(target, callback) {
           $notification.post("po0 已加白", target.host, ip);
         }
       }
-      console.log("po0 report ok: " + target.host + " " + ip);
+      console.log("po0 mailbox ok: " + target.host + " " + ip);
       callback(null);
     }
   );
@@ -120,7 +110,7 @@ function runQueue(targets, index, errors) {
   }
   postOne(targets[index], function (error) {
     if (error) {
-      console.log("po0 report fail: " + error);
+      console.log("po0 mailbox fail: " + error);
       errors.push(error);
     }
     runQueue(targets, index + 1, errors);
@@ -130,7 +120,7 @@ function runQueue(targets, index, errors) {
 const targets = parseTargets();
 if (!targets.length) {
   if (notify) {
-    $notification.post("po0 加白失败", "", "请填写至少一台 po0 的地址和 Token");
+    $notification.post("po0 加白失败", "", "请填写香港 CTC 地址和 Token");
   }
   $done();
 } else {

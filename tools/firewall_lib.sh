@@ -8,7 +8,6 @@ DATA_DIR="${DATA_DIR:-${PO0_ROOT}/data}"
 PO0_CHAIN_NAME="PO0_REGION_WHITELIST"
 PO0_SET_NAME="po0_region_whitelist"
 PO0_CLIENT_SET_NAME="${PO0_CLIENT_SET_NAME:-po0_client_ips}"
-PO0_REPORT_PORT="${PO0_REPORT_PORT:-41741}"
 
 po0_python() {
   if command -v python3 >/dev/null 2>&1; then
@@ -57,9 +56,9 @@ po0_render_apply_commands() {
   local client_ip="${1:-}"
   shift || true
   if [[ -n "${client_ip}" ]]; then
-    po0_region_tool render-apply --report-port "${PO0_REPORT_PORT}" --client-ip "${client_ip}" "$@"
+    po0_region_tool render-apply --client-ip "${client_ip}" "$@"
   else
-    po0_region_tool render-apply --report-port "${PO0_REPORT_PORT}" "$@"
+    po0_region_tool render-apply "$@"
   fi
 }
 
