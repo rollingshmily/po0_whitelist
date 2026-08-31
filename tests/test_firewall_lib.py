@@ -117,9 +117,20 @@ class FirewallLibTests(unittest.TestCase):
         script = INSTALL_SH.read_text(encoding="utf-8")
 
         self.assertIn("./install.sh setup", script)
+        self.assertIn("./install.sh update", script)
         self.assertIn("install_shortcut()", script)
+        self.assertIn("update_from_github()", script)
         self.assertIn("/usr/local/bin/p", script)
         self.assertIn("/opt/po0_whitelist", script)
+        self.assertIn("tools/github_fetch.sh", script)
+
+    def test_github_fetch_uses_china_mirrors(self):
+        fetch = (ROOT / "tools" / "github_fetch.sh").read_text(encoding="utf-8")
+
+        self.assertIn("https://ghspeedup.com/", fetch)
+        self.assertIn("https://gh-proxy.com/", fetch)
+        self.assertIn("po0_fetch_latest_tree", fetch)
+        self.assertIn("archive/refs/heads/", fetch)
 
     def test_bootstrap_uses_china_github_mirrors(self):
         bootstrap = (ROOT / "bootstrap.sh").read_text(encoding="utf-8")

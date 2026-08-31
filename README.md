@@ -30,7 +30,15 @@ curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/
 p
 ```
 
-即可唤出白名单脚本。`p status`、`p clear`、`p dry-run` 同样可用。
+即可唤出白名单脚本。`p status`、`p clear`、`p dry-run`、`p update` 同样可用。
+
+仓库里的 IP 库更新后，在 po0 上同步：
+
+```bash
+p update
+```
+
+`p update` 走 `ghspeedup.com` / `gh-proxy.com` 加速拉取最新包，只更新 `/opt/po0_whitelist` 里的文件，**不会自动改当前防火墙**。要让新 IP 段生效，再运行一次 `p`。
 
 ## 使用
 

@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${ROOT}/tools/firewall_lib.sh"
+source "${ROOT}/tools/github_fetch.sh"
 
 usage() {
   cat <<'EOF'
@@ -14,11 +15,13 @@ po0 省/市白名单一键脚本
   ./install.sh status    查看当前托管规则
   ./install.sh clear     清除本脚本创建的规则和 ipset
   ./install.sh setup     安装到本机并添加快捷命令 p
+  ./install.sh update    通过国内加速源拉取仓库最新 IP 库和脚本
 
 说明：
   apply 会让未命中白名单的所有入站端口全部拒绝。
   建议先运行 dry-run，确认地区和命令后再 apply。
-  安装完成后可直接输入 p 唤出本脚本。
+  安装完成后可直接输入 p 唤出本脚本，p update 可同步最新 IP 库。
+  update 只更新本地文件，不会自动改当前防火墙规则。
 EOF
 }
 
@@ -224,6 +227,28 @@ setup_install() {
   echo "安装完成。输入 p 即可唤出白名单脚本。"
 }
 
+update_from_github() {
+  po0_require_root
+  local tmp src
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "${tmp}"' RETURN
+  src="$(po0_fetch_latest_tree "${tmp}")"
+  mkdir -p "${ROOT}/data/regions"
+  find "${ROOT}/data/regions" -type f -name '*.txt' -delete
+  cp -a "${src}/." "${ROOT}/"
+  chmod 755 "${ROOT}/install.sh" "${ROOT}/bootstrap.sh"
+  if [[ -d "${PO0_INSTALL_DIR}" && "$(cd "${ROOT}" && pwd)" != "$(cd "${PO0_INSTALL_DIR}" && pwd)" ]]; then
+    find "${PO0_INSTALL_DIR}/data/regions" -type f -name '*.txt' -delete 2>/dev/null || true
+    cp -a "${src}/." "${PO0_INSTALL_DIR}/"
+    chmod 755 "${PO0_INSTALL_DIR}/install.sh"
+    install_shortcut "${PO0_INSTALL_DIR}"
+  else
+    install_shortcut "${ROOT}"
+  fi
+  echo "已从 GitHub 同步最新 IP 库和脚本。"
+  echo "当前防火墙规则不会自动改动；需要生效请再运行 p 重新 apply。"
+}
+
 main() {
   local command="${1:-apply}"
   case "${command}" in
@@ -232,6 +257,7 @@ main() {
     status) status_rules ;;
     clear) clear_rules ;;
     setup|install) setup_install ;;
+    update) update_from_github ;;
     -h|--help|help) usage ;;
     *) usage; exit 2 ;;
   esac
