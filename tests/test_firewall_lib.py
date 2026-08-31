@@ -153,8 +153,11 @@ class FirewallLibTests(unittest.TestCase):
             "定时/网络变化时，把本机 DIRECT 出口 IP 上报到 po0 白名单。请填写 po0 公网 IP、上报端口和 Token。",
             plugin,
         )
-        self.assertIn("#!date=版本日期：2026-09-01 03:13 v1.5", plugin)
-        self.assertNotIn("版本 v5", plugin)
+        self.assertRegex(
+            plugin,
+            r"(?m)^#!date=\d{4}-\d{2}-\d{2} \d{2}:\d{2} v\d+\.\d+$",
+        )
+        self.assertNotIn("#!date=版本日期：", plugin)
         self.assertIn("network-changed then script(", plugin)
         self.assertIn("cron ${cron} then script(", plugin)
         self.assertIn("{${cron}, ${host}, ${port}, ${token}, ${extra}, ${notify}}", plugin)
