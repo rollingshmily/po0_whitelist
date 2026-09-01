@@ -199,6 +199,8 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("generic then script(", plugin)
         self.assertIn("img_url=\"network\"", plugin)
         self.assertIn("gh-proxy.com", plugin)
+        self.assertIn("#!icon=https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/niceduck.png", plugin)
+        self.assertTrue((ROOT / "loon" / "niceduck.png").is_file())
         self.assertIn('node: "DIRECT"', script)
         self.assertIn("/report", script)
         self.assertNotIn("104.251.236.188", plugin)
