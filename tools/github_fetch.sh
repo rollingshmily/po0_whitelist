@@ -43,8 +43,8 @@ po0_fetch_latest_tree() {
     po0_http_get "${PO0_ARCHIVE_URL}" "${archive}"
   fi
 
-  tar -tzf "${archive}" >/dev/null
-  tar -xzf "${archive}" -C "${tmpdir}"
+  tar --warning=no-timestamp -tzf "${archive}" >/dev/null
+  tar --warning=no-timestamp -xzf "${archive}" -C "${tmpdir}"
   src="$(find "${tmpdir}" -mindepth 1 -maxdepth 1 -type d -name 'po0_whitelist-*' | head -n 1)"
   if [[ -z "${src}" || ! -f "${src}/install.sh" || ! -d "${src}/data/regions" ]]; then
     echo "压缩包内容无效。" >&2

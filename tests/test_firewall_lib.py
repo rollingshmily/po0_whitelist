@@ -223,6 +223,7 @@ class FirewallLibTests(unittest.TestCase):
         self.assertNotIn("ghspeedup.com", fetch)
         self.assertIn("po0_fetch_latest_tree", fetch)
         self.assertIn("archive/refs/heads/", fetch)
+        self.assertIn("--warning=no-timestamp", fetch)
 
     def test_bootstrap_uses_china_github_mirrors(self):
         bootstrap = (ROOT / "bootstrap.sh").read_text(encoding="utf-8")
@@ -231,6 +232,8 @@ class FirewallLibTests(unittest.TestCase):
         self.assertNotIn("ghspeedup.com", bootstrap)
         self.assertIn("rollingshmily/po0_whitelist", bootstrap)
         self.assertIn("install.sh\" setup", bootstrap)
+        self.assertIn("cd /", bootstrap)
+        self.assertIn("--warning=no-timestamp", bootstrap)
 
     def test_firewall_lib_auto_installs_missing_iptables_and_ipset(self):
         script = FIREWALL_LIB.read_text(encoding="utf-8")

@@ -19,6 +19,9 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
+# 人如果还停在 /opt/po0_whitelist 里，后面 rm -rf 会把当前目录抽空，bash 狂报 getcwd。
+cd /
+
 download() {
   local url="$1"
   local dest="$2"
@@ -51,8 +54,8 @@ if [[ "${ok}" -ne 1 ]]; then
   download "${ARCHIVE_URL}" "${ARCHIVE}"
 fi
 
-tar -tzf "${ARCHIVE}" >/dev/null
-tar -xzf "${ARCHIVE}" -C "${TMP}"
+tar --warning=no-timestamp -tzf "${ARCHIVE}" >/dev/null
+tar --warning=no-timestamp -xzf "${ARCHIVE}" -C "${TMP}"
 SRC="$(find "${TMP}" -mindepth 1 -maxdepth 1 -type d -name 'po0_whitelist-*' | head -n 1)"
 if [[ -z "${SRC}" || ! -f "${SRC}/install.sh" ]]; then
   echo "压缩包内容无效。" >&2

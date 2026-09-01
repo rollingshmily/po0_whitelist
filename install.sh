@@ -488,6 +488,7 @@ uninstall_local() {
     systemctl daemon-reload 2>/dev/null || true
   fi
   rm -f "${PO0_BIN}"
+  cd /
   if [[ -d "${PO0_INSTALL_DIR}" ]]; then
     rm -rf "${PO0_INSTALL_DIR}"
   fi
