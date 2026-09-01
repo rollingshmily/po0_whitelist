@@ -10,15 +10,6 @@ STORE_FILE="${PO0_MAILBOX_STORE:-${STATE_DIR}/clients.json}"
 ENV_FILE="${PO0_MAILBOX_ENV:-/etc/default/po0-mailbox}"
 UNIT_FILE="/etc/systemd/system/po0-mailbox.service"
 
-if [[ "${EUID}" -ne 0 ]]; then
-  echo "请用 root 或 sudo 运行。" >&2
-  exit 1
-fi
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "需要 python3。" >&2
-  exit 1
-fi
-
 read_default() {
   local prompt="$1"
   local default="$2"
@@ -34,6 +25,31 @@ read_default() {
     printf '%s\n' "${value}"
   fi
 }
+
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "请用 root 或 sudo 运行。" >&2
+  exit 1
+fi
+
+if [[ "${1:-}" == "uninstall" ]]; then
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl disable --now po0-mailbox.service 2>/dev/null || true
+    rm -f "${UNIT_FILE}"
+    systemctl daemon-reload 2>/dev/null || true
+  fi
+  rm -rf "${INSTALL_DIR}"
+  echo "信箱服务已停。是否删除 Token 和已上报 IP？"
+  confirm="$(read_default "输入 YES 删除状态目录: " "")"
+  if [[ "${confirm}" == "YES" ]]; then
+    rm -rf "${STATE_DIR}" "${ENV_FILE}"
+  fi
+  echo "海外信箱已卸载。"
+  exit 0
+fi
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "需要 python3。" >&2
+  exit 1
+fi
 
 echo "=== po0 信箱安装（海外机器）==="
 echo "国内要做 iptables 白名单的机器不要装这个，只装 install.sh。"

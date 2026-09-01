@@ -44,11 +44,11 @@ curl -fsSL https://ghspeedup.com/https://raw.githubusercontent.com/rollingshmily
 curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/bootstrap.sh | sudo bash
 ```
 
-然后：
+然后输入 `p` 进入菜单，可配置信箱、应用省市、手动加白、更新、卸载。也可直接：
 
 ```bash
-p                  # 交互选择省市并 apply
 p mailbox-config   # 填海外信箱的地址、端口、Token
+p                  # 菜单：选省市 / 拉取 / 更新 / 卸载
 ```
 
 之后每分钟自动 `p pull`。也可手动：

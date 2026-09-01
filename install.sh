@@ -39,12 +39,14 @@ po0 省/市白名单一键脚本
   ./install.sh mailbox-config   配置海外信箱地址/端口/Token
   ./install.sh clients          查看已从信箱取回的直连 IP
   ./install.sh pull             从海外信箱拉取直连 IP 并写入 ipset
+  ./install.sh add-ip           手动把一个 IPv4 加入直连白名单
+  ./install.sh uninstall        卸载本机快捷命令、定时拉取和安装目录
+  ./install.sh                  不带参数则进入交互菜单
 
 说明：
+  安装完成后输入 p 进入菜单。也可直接 p apply / p update 等。
   apply 会让未命中白名单的所有入站端口全部拒绝。
-  建议先运行 dry-run，确认地区和命令后再 apply。
-  安装完成后可直接输入 p 唤出本脚本。
-  apply 成功后会记住所选省市；之后 p update 不用再选。
+  apply 成功后会记住所选省市；之后更新可按上次选择重灌。
   Loon 报到海外信箱，防火墙机器只出站拉取，国内机器不开 HTTP 口。
 EOF
 }
@@ -270,9 +272,6 @@ if [[ ! -f "\${INSTALL_SH}" ]]; then
   echo "未找到 \${INSTALL_SH}，请重新安装 po0_whitelist。" >&2
   exit 1
 fi
-if [[ \$# -eq 0 ]]; then
-  set -- apply
-fi
 if [[ "\${EUID}" -ne 0 ]]; then
   exec sudo -- bash "\${INSTALL_SH}" "\$@"
 fi
@@ -411,6 +410,95 @@ show_clients() {
   fi
 }
 
+add_manual_ip() {
+  po0_require_root
+  command -v ipset >/dev/null 2>&1 || po0_require_commands
+  local ip
+  ip="$(read_from_tty "要加白的 IPv4: ")"
+  ip="${ip// /}"
+  if [[ -z "${ip}" ]]; then
+    echo "未输入 IP。" >&2
+    return 1
+  fi
+  python3 -c 'import ipaddress,sys; ip=ipaddress.ip_address(sys.argv[1]); assert ip.version==4' "${ip}" || {
+    echo "不是合法 IPv4。" >&2
+    return 1
+  }
+  ipset create "${PO0_CLIENT_SET_NAME}" hash:ip family inet -exist
+  ipset add "${PO0_CLIENT_SET_NAME}" "${ip}" -exist
+  echo "已加入直连白名单：${ip}"
+}
+
+uninstall_local() {
+  po0_require_root
+  local confirm
+  confirm="$(read_from_tty "确认卸载本机 po0 白名单脚本？输入 YES: ")"
+  if [[ "${confirm}" != "YES" ]]; then
+    echo "已取消。"
+    return 0
+  fi
+  if command -v iptables >/dev/null 2>&1 && command -v ipset >/dev/null 2>&1; then
+    po0_render_clear_commands | po0_run_rendered_commands || true
+  fi
+  stop_legacy_report_service
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl disable --now po0-mailbox-pull.timer 2>/dev/null || true
+    rm -f /etc/systemd/system/po0-mailbox-pull.timer /etc/systemd/system/po0-mailbox-pull.service
+    systemctl daemon-reload 2>/dev/null || true
+  fi
+  rm -f "${PO0_BIN}"
+  if [[ -d "${PO0_INSTALL_DIR}" ]]; then
+    rm -rf "${PO0_INSTALL_DIR}"
+  fi
+  local wipe
+  wipe="$(read_from_tty "同时删除本机状态（信箱配置/Token/上次省市）？输入 YES: ")"
+  if [[ "${wipe}" == "YES" ]]; then
+    rm -rf "${PO0_STATE_DIR}"
+  fi
+  echo "本机脚本已卸载。海外信箱需在信箱机器上执行：sudo bash mailbox-install.sh uninstall"
+}
+
+show_menu() {
+  local choice
+  while true; do
+    cat <<'EOF'
+
+======== po0 白名单 ========
+ 1) 选择省市并应用
+ 2) 预览命令（不改防火墙）
+ 3) 按上次省市重灌
+ 4) 查看状态
+ 5) 清除省市规则
+ 6) 手动加一个直连 IP
+ 7) 配置海外信箱
+ 8) 从信箱拉取 IP
+ 9) 查看直连 IP 名单
+10) 显示 Loon 地址和 Token
+11) 更新脚本和 IP 库
+12) 卸载本机脚本
+ 0) 退出
+==========================
+EOF
+    choice="$(read_from_tty "请选择: ")"
+    case "${choice}" in
+      1) run_apply_or_dry_run 0 ;;
+      2) run_apply_or_dry_run 1 ;;
+      3) apply_saved_selection reapply || true ;;
+      4) status_rules ;;
+      5) clear_rules ;;
+      6) add_manual_ip || true ;;
+      7) mailbox_config ;;
+      8) pull_mailbox || true ;;
+      9) show_clients ;;
+      10) show_token || true ;;
+      11) update_from_github ;;
+      12) uninstall_local; return 0 ;;
+      0|q|Q) echo "Bye."; return 0 ;;
+      *) echo "无效选择。" ;;
+    esac
+  done
+}
+
 setup_install() {
   po0_require_root
   if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
@@ -458,8 +546,9 @@ update_from_github() {
 }
 
 main() {
-  local command="${1:-apply}"
+  local command="${1:-menu}"
   case "${command}" in
+    menu) show_menu ;;
     apply) run_apply_or_dry_run 0 ;;
     dry-run) run_apply_or_dry_run 1 ;;
     status) status_rules ;;
@@ -471,6 +560,8 @@ main() {
     mailbox-config) mailbox_config ;;
     clients) show_clients ;;
     pull) pull_mailbox ;;
+    add-ip) add_manual_ip ;;
+    uninstall) uninstall_local ;;
     -h|--help|help) usage ;;
     *) usage; exit 2 ;;
   esac
