@@ -144,6 +144,8 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("tools/github_fetch.sh", script)
         self.assertIn("./install.sh token", script)
         self.assertIn("mailbox-config", script)
+        self.assertIn("set_pull_interval()", script)
+        self.assertIn("PO0_MAILBOX_PULL_MINUTES", script)
         self.assertIn("配置省市白名单", script)
         self.assertIn("配置信箱", script)
         self.assertIn("更新脚本及IP库", script)

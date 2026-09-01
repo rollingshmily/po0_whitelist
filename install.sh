@@ -17,6 +17,7 @@ if [[ -f "${PO0_MAILBOX_CONF}" ]]; then
 fi
 PO0_MAILBOX_HOST="${PO0_MAILBOX_HOST:-}"
 PO0_MAILBOX_PORT="${PO0_MAILBOX_PORT:-18443}"
+PO0_MAILBOX_PULL_MINUTES="${PO0_MAILBOX_PULL_MINUTES:-5}"
 if [[ -n "${PO0_MAILBOX_HOST}" ]]; then
   PO0_MAILBOX_URL="${PO0_MAILBOX_URL:-http://${PO0_MAILBOX_HOST}:${PO0_MAILBOX_PORT}}"
 else
@@ -341,14 +342,15 @@ Type=oneshot
 Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/bin/bash ${script_root}/install.sh pull
 EOF
-    cat > /etc/systemd/system/po0-mailbox-pull.timer <<'EOF'
+    local minutes="${PO0_MAILBOX_PULL_MINUTES:-5}"
+    cat > /etc/systemd/system/po0-mailbox-pull.timer <<EOF
 [Unit]
-Description=Pull client IPs from overseas mailbox every minute
+Description=Pull client IPs from overseas mailbox every ${minutes} minutes
 
 [Timer]
-OnBootSec=20s
-OnUnitActiveSec=60s
-AccuracySec=10s
+OnBootSec=30s
+OnUnitActiveSec=${minutes}min
+AccuracySec=30s
 
 [Install]
 WantedBy=timers.target
@@ -372,32 +374,63 @@ show_token() {
   echo "Loon 插件: https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin"
 }
 
+write_mailbox_conf() {
+  mkdir -p "${PO0_STATE_DIR}"
+  cat > "${PO0_MAILBOX_CONF}" <<EOF
+PO0_MAILBOX_HOST=${PO0_MAILBOX_HOST}
+PO0_MAILBOX_PORT=${PO0_MAILBOX_PORT}
+PO0_MAILBOX_URL=${PO0_MAILBOX_URL}
+PO0_MAILBOX_PULL_MINUTES=${PO0_MAILBOX_PULL_MINUTES}
+EOF
+  chmod 600 "${PO0_MAILBOX_CONF}"
+}
+
+set_pull_interval() {
+  po0_require_root
+  local minutes current
+  current="${PO0_MAILBOX_PULL_MINUTES:-5}"
+  minutes="$(read_from_tty "每隔几分钟从信箱拉一次 [${current}]: ")"
+  minutes="${minutes:-${current}}"
+  if ! [[ "${minutes}" =~ ^[1-9][0-9]*$ ]] || (( minutes > 1440 )); then
+    echo "请输入 1 到 1440 的整数分钟。" >&2
+    return 1
+  fi
+  PO0_MAILBOX_PULL_MINUTES="${minutes}"
+  if [[ -n "${PO0_MAILBOX_HOST}" ]]; then
+    write_mailbox_conf
+  fi
+  install_pull_timer
+  echo "已改为每 ${minutes} 分钟拉一次。"
+}
+
 mailbox_config() {
   po0_require_root
   mkdir -p "${PO0_STATE_DIR}"
-  local host port token
+  local host port token minutes
   host="$(read_from_tty "信箱公网 IP 或域名: ")"
   port="$(read_from_tty "信箱端口 [18443]: ")"
   token="$(read_from_tty "信箱 Token: ")"
+  minutes="$(read_from_tty "每隔几分钟拉一次 [5]: ")"
   port="${port:-18443}"
+  minutes="${minutes:-5}"
   if [[ -z "${host}" || -z "${token}" ]]; then
     echo "地址和 Token 不能为空。" >&2
     exit 1
   fi
-  cat > "${PO0_MAILBOX_CONF}" <<EOF
-PO0_MAILBOX_HOST=${host}
-PO0_MAILBOX_PORT=${port}
-PO0_MAILBOX_URL=http://${host}:${port}
-EOF
-  chmod 600 "${PO0_MAILBOX_CONF}"
+  if ! [[ "${minutes}" =~ ^[1-9][0-9]*$ ]] || (( minutes > 1440 )); then
+    echo "拉取间隔请输入 1 到 1440 的整数分钟。" >&2
+    exit 1
+  fi
   printf '%s\n' "${token}" > "${PO0_TOKEN_FILE}"
   chmod 600 "${PO0_TOKEN_FILE}"
   PO0_MAILBOX_HOST="${host}"
   PO0_MAILBOX_PORT="${port}"
   PO0_MAILBOX_URL="http://${host}:${port}"
+  PO0_MAILBOX_PULL_MINUTES="${minutes}"
+  write_mailbox_conf
   install_pull_timer
   echo "信箱已配置。Loon 填地址 ${host}、端口 ${port}，Token 用刚才那把。"
-  echo "请给该信箱 IP 在 Loon 里走 DIRECT。"
+  echo "本机每 ${minutes} 分钟拉一次。请给该信箱 IP 在 Loon 里走 DIRECT。"
   pull_mailbox || true
 }
 
@@ -491,21 +524,23 @@ phone_menu() {
   while true; do
     cat <<'EOF'
 
--- 手机 IP --
+-- 配置信箱 --
  1) 配置海外信箱
- 2) 马上从信箱拉一次
- 3) 看已加的手机 IP
- 4) 手动加一个 IP
- 5) 显示 Loon 要填的地址和 Token
+ 2) 修改拉取间隔
+ 3) 马上从信箱拉一次
+ 4) 看已加的手机 IP
+ 5) 手动加一个 IP
+ 6) 显示 Loon 要填的地址和 Token
  0) 返回
 EOF
     choice="$(read_from_tty "请选择: ")"
     case "${choice}" in
       1) mailbox_config; pause_menu ;;
-      2) pull_mailbox || true; pause_menu ;;
-      3) show_clients; pause_menu ;;
-      4) add_manual_ip || true; pause_menu ;;
-      5) show_token || true; pause_menu ;;
+      2) set_pull_interval || true; pause_menu ;;
+      3) pull_mailbox || true; pause_menu ;;
+      4) show_clients; pause_menu ;;
+      5) add_manual_ip || true; pause_menu ;;
+      6) show_token || true; pause_menu ;;
       0) return 0 ;;
       *) echo "无效选择。" ;;
     esac
@@ -595,6 +630,7 @@ main() {
     reapply) apply_saved_selection reapply ;;
     token) show_token ;;
     mailbox-config) mailbox_config ;;
+    pull-interval) set_pull_interval ;;
     clients) show_clients ;;
     pull) pull_mailbox ;;
     add-ip) add_manual_ip ;;
