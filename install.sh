@@ -512,7 +512,7 @@ uninstall_local() {
 }
 
 pause_menu() {
-  read_from_tty "回车返回..." >/dev/null || true
+  read_from_tty "Enter 返回" >/dev/null || true
 }
 
 region_menu() {
@@ -520,16 +520,16 @@ region_menu() {
   while true; do
     cat <<'EOF'
 
--- 地区白名单 --
- 1) 选地区，立刻生效
- 2) 用上次选的地区再生效（不用重选）
- 3) 看当前规则
- 4) 关掉地区白名单
- 5) 清除当前所有规则
- 6) 手动加一个 IP
+省市白名单
+ 1) 应用
+ 2) 再次应用
+ 3) 状态
+ 4) 关闭
+ 5) 清除全部
+ 6) 添加 IP
  0) 返回
 EOF
-    choice="$(read_from_tty "请选择: ")"
+    choice="$(read_from_tty "选择: ")"
     case "${choice}" in
       1) run_apply_or_dry_run 0; pause_menu ;;
       2) apply_saved_selection reapply || true; pause_menu ;;
@@ -548,15 +548,15 @@ phone_menu() {
   while true; do
     cat <<'EOF'
 
--- 配置信箱 --
- 1) 配置海外信箱
- 2) 修改拉取间隔
- 3) 马上从信箱拉一次
- 4) 看已加的手机 IP
- 5) 显示 Loon 要填的地址和 Token
+信箱
+ 1) 配置
+ 2) 拉取间隔
+ 3) 立即拉取
+ 4) 客户端列表
+ 5) 查看 Token
  0) 返回
 EOF
-    choice="$(read_from_tty "请选择: ")"
+    choice="$(read_from_tty "选择: ")"
     case "${choice}" in
       1) mailbox_config; pause_menu ;;
       2) set_pull_interval || true; pause_menu ;;
@@ -575,19 +575,19 @@ show_menu() {
     cat <<'EOF'
 
 po0 白名单
- 1) 配置省市白名单
- 2) 配置信箱
- 3) 更新脚本及IP库
- 4) 卸载脚本
+ 1) 省市白名单
+ 2) 信箱
+ 3) 更新
+ 4) 卸载
  0) 退出
 EOF
-    choice="$(read_from_tty "请选择: ")"
+    choice="$(read_from_tty "选择: ")"
     case "${choice}" in
       1) region_menu ;;
       2) phone_menu ;;
       3) update_from_github; pause_menu ;;
       4) uninstall_local; return 0 ;;
-      0|q|Q) echo "Bye."; return 0 ;;
+      0|q|Q) echo "已退出。"; return 0 ;;
       *) echo "无效选择。" ;;
     esac
   done
