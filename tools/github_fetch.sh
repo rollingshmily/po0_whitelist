@@ -24,23 +24,50 @@ po0_http_get() {
   fi
 }
 
+po0_fetch_via_mailbox() {
+  local dest="$1"
+  local token
+  if [[ -z "${PO0_MAILBOX_URL:-}" || ! -s "${PO0_TOKEN_FILE:-}" ]]; then
+    return 1
+  fi
+  token="$(cat "${PO0_TOKEN_FILE}")"
+  echo "正在从信箱拉取 ${PO0_REPO}@${PO0_BRANCH} ..." >&2
+  if command -v curl >/dev/null 2>&1; then
+    curl -fL --connect-timeout 15 --max-time 120 \
+      -H "Authorization: Bearer ${token}" \
+      -o "${dest}" "${PO0_MAILBOX_URL%/}/update"
+  else
+    echo "未找到 curl。" >&2
+    return 1
+  fi
+}
+
 po0_fetch_latest_tree() {
   local tmpdir="$1"
   local archive="${tmpdir}/src.tar.gz"
   local url prefix ok=0 src
 
-  echo "正在通过国内加速源下载 ${PO0_REPO}@${PO0_BRANCH} ..." >&2
-  for prefix in "${PO0_GITHUB_MIRRORS[@]}"; do
-    url="${prefix}${PO0_ARCHIVE_URL}"
-    echo "尝试 ${url}" >&2
-    if po0_http_get "${url}" "${archive}"; then
-      ok=1
-      break
+  if [[ -n "${PO0_MAILBOX_URL:-}" && -s "${PO0_TOKEN_FILE:-}" ]]; then
+    if ! po0_fetch_via_mailbox "${archive}"; then
+      echo "信箱更新失败。已配信箱时不会改走 GitHub 加速源。" >&2
+      return 1
     fi
-  done
-  if [[ "${ok}" -ne 1 ]]; then
-    echo "加速源失败，尝试直连 GitHub ..." >&2
-    po0_http_get "${PO0_ARCHIVE_URL}" "${archive}"
+    ok=1
+  else
+    echo "正在通过国内加速源下载 ${PO0_REPO}@${PO0_BRANCH} ..." >&2
+    for prefix in "${PO0_GITHUB_MIRRORS[@]}"; do
+      url="${prefix}${PO0_ARCHIVE_URL}"
+      echo "尝试 ${url}" >&2
+      if po0_http_get "${url}" "${archive}"; then
+        ok=1
+        break
+      fi
+    done
+    if [[ "${ok}" -ne 1 ]]; then
+      echo "加速源失败，尝试直连 GitHub ..." >&2
+      po0_http_get "${PO0_ARCHIVE_URL}" "${archive}"
+      ok=1
+    fi
   fi
 
   tar --warning=no-timestamp -tzf "${archive}" >/dev/null

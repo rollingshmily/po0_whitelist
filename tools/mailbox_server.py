@@ -10,6 +10,8 @@ import re
 import ssl
 import threading
 import time
+import urllib.error
+import urllib.request
 from collections import defaultdict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,6 +27,10 @@ TLS_KEY = os.environ.get("PO0_MAILBOX_TLS_KEY", "").strip()
 RATE_WINDOW_SEC = float(os.environ.get("PO0_MAILBOX_RATE_WINDOW_SEC", "60"))
 RATE_MAX_HITS = int(os.environ.get("PO0_MAILBOX_RATE_MAX_HITS", "120"))
 RATE_MAX_FAILS = int(os.environ.get("PO0_MAILBOX_RATE_MAX_FAILS", "20"))
+UPDATE_TTL_SEC = int(os.environ.get("PO0_MAILBOX_UPDATE_TTL_SEC", "300"))
+UPDATE_REPO = os.environ.get("PO0_MAILBOX_UPDATE_REPO", "rollingshmily/po0_whitelist")
+UPDATE_BRANCH = os.environ.get("PO0_MAILBOX_UPDATE_BRANCH", "main")
+UPDATE_LOCK = threading.Lock()
 
 
 def load_token() -> str:
@@ -102,6 +108,28 @@ def read_store() -> dict:
     }
 
 
+def update_cache_path() -> Path:
+    return STORE_FILE.parent / "update.tar.gz"
+
+
+def refresh_update_archive() -> Path:
+    cache = update_cache_path()
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    url = f"https://github.com/{UPDATE_REPO}/archive/refs/heads/{UPDATE_BRANCH}.tar.gz"
+    with UPDATE_LOCK:
+        if cache.exists() and time.time() - cache.stat().st_mtime < UPDATE_TTL_SEC:
+            return cache
+        tmp = cache.with_suffix(".tmp")
+        req = urllib.request.Request(url, headers={"User-Agent": "po0-mailbox-update"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            blob = resp.read()
+        if len(blob) < 100 or blob[:2] != b"\x1f\x8b":
+            raise RuntimeError("invalid github archive")
+        tmp.write_bytes(blob)
+        tmp.replace(cache)
+        return cache
+
+
 def write_store(data: dict) -> None:
     STORE_FILE.parent.mkdir(parents=True, exist_ok=True)
     tmp = STORE_FILE.with_suffix(".tmp")
@@ -138,6 +166,19 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_file(self, path: Path) -> None:
+        data = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/gzip")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", "attachment; filename=po0_whitelist.tar.gz")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _pull_auth_ok(self) -> bool:
+        return self._bearer_ok() and self._peer() in ALLOWED_PULL
+
     def _bearer_ok(self) -> bool:
         header = self.headers.get("Authorization", "")
         given = header[7:].strip() if header.startswith("Bearer ") else ""
@@ -148,11 +189,20 @@ class Handler(BaseHTTPRequestHandler):
             self._send(429, {"ok": False, "error": "too many requests"})
             return
         path = self.path.split("?", 1)[0]
-        if path != "/list":
+        if path not in {"/list", "/update"}:
             self._send(404, {"ok": False, "error": "not found"})
             return
-        if not self._bearer_ok() or self._peer() not in ALLOWED_PULL:
+        if not self._pull_auth_ok():
             self._deny(403, "forbidden", failed=True)
+            return
+        if path == "/update":
+            try:
+                archive = refresh_update_archive()
+            except (OSError, RuntimeError, urllib.error.URLError, TimeoutError) as exc:
+                self.log_error("update fetch failed: %s", exc)
+                self._send(502, {"ok": False, "error": "update fetch failed"})
+                return
+            self._send_file(archive)
             return
         data = read_store()
         write_store(data)

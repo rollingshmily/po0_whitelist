@@ -126,7 +126,7 @@ po0 白名单
  0) 返回
 ```
 
-`3) 更新`：用加速源覆盖 `/opt/po0_whitelist`，有上次省市则自动再应用。
+`3) 更新`：覆盖 `/opt/po0_whitelist`，有上次省市则自动再应用。已配信箱时从信箱 `GET /update` 拉包（信箱机器代下 GitHub），国内机器不必再开 HTTP 代理。未配信箱时仍走 gh-proxy 等加速源。
 
 ## 命令
 
@@ -172,7 +172,7 @@ https://cdn.jsdelivr.net/gh/rollingshmily/po0_whitelist@main/loon/po0-ip-report.
 - Token：信箱安装时打印的那把
 - 定时检查：Cron，默认 `*/5 * * * *`
 
-信箱 IP 必须 Loon DIRECT。上报路径为 `POST /report`；国内拉取为 `GET /list`。
+信箱 IP 必须 Loon DIRECT。上报 `POST /report`；国内拉 IP 为 `GET /list`；拉更新包为 `GET /update`（鉴权与 `/list` 相同：Token + 允许源 IP）。
 
 ## 安全
 

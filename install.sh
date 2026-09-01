@@ -36,7 +36,7 @@ po0 省/市白名单
   p clear                          清除省市（保留客户端 IP）
   p clear-all                      清除全部
   p add-ip                         手动添加 IPv4
-  p update                         更新脚本和 IP 库，并按上次选择应用
+  p update                         更新脚本和 IP 库；已配信箱则从信箱拉取
   p mailbox-config                 配置信箱
   p pull-interval                  修改拉取间隔（分钟）
   p pull                           立即从信箱拉取
