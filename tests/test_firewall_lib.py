@@ -160,6 +160,7 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("add_manual_ip()", script)
         self.assertIn(" 1) 添加省市", script)
         self.assertIn(" 2) 应用上次选择", script)
+        self.assertIn(" 3) 当前规则", script)
         self.assertIn(" 4) 清除省市", script)
         self.assertIn(" 5) 清除全部", script)
         self.assertIn("clear_all_rules()", script)
