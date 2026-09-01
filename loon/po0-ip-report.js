@@ -70,7 +70,7 @@ function postOne(target, callback) {
     },
     function (error, response, data) {
       if (error) {
-        callback(target.host + " " + error);
+        callback("上报失败");
         return;
       }
       const status = response && response.status;
@@ -81,7 +81,7 @@ function postOne(target, callback) {
         payload = {};
       }
       if (status !== 200 || !payload.ok) {
-        callback(target.host + " HTTP " + status + " " + (payload.error || data || ""));
+        callback("上报失败");
         return;
       }
       const ip = String(payload.ip || "");
@@ -90,10 +90,10 @@ function postOne(target, callback) {
       if (ip && ip !== last) {
         $persistentStore.write(ip, key);
         if (notify) {
-          $notification.post("po0 已加白", target.host, ip);
+          $notification.post("po0 已加白", "", ip);
         }
       }
-      console.log("po0 mailbox ok: " + target.host + " " + ip);
+      console.log("po0 mailbox ok " + ip);
       callback(null);
     }
   );

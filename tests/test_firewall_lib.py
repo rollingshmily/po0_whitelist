@@ -215,6 +215,8 @@ class FirewallLibTests(unittest.TestCase):
         self.assertTrue((ROOT / "loon" / "niceduck.png").is_file())
         self.assertIn('node: "DIRECT"', script)
         self.assertIn("/report", script)
+        self.assertIn('$notification.post("po0 已加白", "", ip)', script)
+        self.assertNotIn('$notification.post("po0 已加白", target.host, ip)', script)
         self.assertNotIn("104.251.236.188", plugin)
         self.assertNotIn("10.100.128.90", plugin)
         self.assertIn('host = input,""', plugin)
