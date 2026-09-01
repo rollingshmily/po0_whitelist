@@ -221,6 +221,15 @@ class FirewallLibTests(unittest.TestCase):
             allowed,
             {"10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5"},
         )
+        source = path.read_text(encoding="utf-8")
+        self.assertNotIn('/health', source)
+        self.assertNotIn('"peer": peer', source)
+        limiter = mod.RateLimiter(window_sec=60, max_hits=3, max_fails=2)
+        self.assertTrue(limiter.allow("203.0.113.1"))
+        self.assertTrue(limiter.allow("203.0.113.1"))
+        limiter.fail("203.0.113.1")
+        limiter.fail("203.0.113.1")
+        self.assertFalse(limiter.allow("203.0.113.1"))
 
     def test_readme_covers_commands_and_does_not_leak_ops_ips(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -234,6 +243,7 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("配置信箱", readme)
         self.assertIn("POST /report", readme)
         self.assertIn("GET /list", readme)
+        self.assertIn("无公开探活", readme)
         self.assertNotIn("104.251.236.188", readme)
         self.assertNotIn("10.100.128.90", readme)
         self.assertNotIn("ghspeedup.com", readme)

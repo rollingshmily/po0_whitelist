@@ -180,6 +180,8 @@ https://cdn.jsdelivr.net/gh/rollingshmily/po0_whitelist@main/loon/po0-ip-report.
 
 省市应用不访问外网。缺少 `iptables` / `ipset` 时用系统软件源安装。
 
+信箱默认只响应 `POST /report` 和 `GET /list`，无公开探活。鉴权失败会限速，错误响应不带回源 IP。默认仍是 HTTP（Loon 直连上报）。若已有域名证书，可在信箱机器环境变量里设置 `PO0_MAILBOX_TLS_CERT` / `PO0_MAILBOX_TLS_KEY` 启用 TLS；自签证书会让 Loon 上报失败，不要用。
+
 ## 文件
 
 - `install.sh`：国内防火墙入口（快捷命令 `p`）
