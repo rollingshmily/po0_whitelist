@@ -222,6 +222,8 @@ class FirewallLibTests(unittest.TestCase):
 
     def test_readme_covers_commands_and_does_not_leak_ops_ips(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("## 免责声明", readme)
+        self.assertIn("仅供学习、测试与技术分享", readme)
         self.assertIn("```mermaid", readme)
         self.assertIn("p apply", readme)
         self.assertIn("p clear-all", readme)
