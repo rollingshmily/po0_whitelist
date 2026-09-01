@@ -26,29 +26,29 @@ fi
 
 usage() {
   cat <<'EOF'
-po0 省/市白名单一键脚本
+po0 省/市白名单
 
 用法：
-  ./install.sh apply     交互选择地区并应用防火墙
-  ./install.sh dry-run   交互选择地区，只打印将执行的命令
-  ./install.sh status    查看当前托管规则
-  ./install.sh clear     清除本脚本创建的规则和 ipset
-  ./install.sh setup     安装到本机并添加快捷命令 p
-  ./install.sh update    拉取最新 IP 库，并按上次选择的省市自动重灌
-  ./install.sh reapply   不拉仓库，按上次省市重新应用
-  ./install.sh token            显示 Loon 要填的信箱地址和 Token
-  ./install.sh mailbox-config   配置海外信箱地址/端口/Token
-  ./install.sh clients          查看已从信箱取回的直连 IP
-  ./install.sh pull             从海外信箱拉取直连 IP 并写入 ipset
-  ./install.sh add-ip           手动把一个 IPv4 加入直连白名单
-  ./install.sh uninstall        卸载本机快捷命令、定时拉取和安装目录
-  ./install.sh                  不带参数则进入交互菜单
+  p / ./install.sh                 菜单
+  p apply                          添加省市并应用
+  p reapply                        应用上次选择
+  p status                         当前规则
+  p clear                          清除省市（保留客户端 IP）
+  p clear-all                      清除全部
+  p add-ip                         手动添加 IPv4
+  p update                         更新脚本和 IP 库，并按上次选择应用
+  p mailbox-config                 配置信箱
+  p pull-interval                  修改拉取间隔（分钟）
+  p pull                           立即从信箱拉取
+  p clients                        客户端 IP 列表
+  p token                          显示信箱地址与 Token
+  p uninstall                      卸载
+  p dry-run                        只打印将执行的命令
+  p help                           命令说明
 
 说明：
-  安装完成后输入 p 进入菜单。也可直接 p apply / p update 等。
-  apply 会让未命中白名单的所有入站端口全部拒绝。
-  apply 成功后会记住所选省市；之后更新可按上次选择重灌。
-  Loon 报到海外信箱，防火墙机器只出站拉取，国内机器不开 HTTP 口。
+  省市白名单离线可用，信箱可选。国内机器不开 HTTP 口。
+  apply 会拒绝未命中白名单的全部入站。成功后记住省市，update 按上次选择再应用。
 EOF
 }
 

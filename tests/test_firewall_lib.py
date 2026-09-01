@@ -132,9 +132,11 @@ class FirewallLibTests(unittest.TestCase):
     def test_install_script_exposes_setup_and_p_shortcut(self):
         script = INSTALL_SH.read_text(encoding="utf-8")
 
-        self.assertIn("./install.sh setup", script)
-        self.assertIn("./install.sh update", script)
-        self.assertIn("./install.sh reapply", script)
+        self.assertIn("p apply", script)
+        self.assertIn("p update", script)
+        self.assertIn("p reapply", script)
+        self.assertIn("p clear-all", script)
+        self.assertIn("p pull-interval", script)
         self.assertIn("install_shortcut()", script)
         self.assertIn("update_from_github()", script)
         self.assertIn("replace_install_tree()", script)
@@ -145,7 +147,7 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("/usr/local/bin/p", script)
         self.assertIn("/opt/po0_whitelist", script)
         self.assertIn("tools/github_fetch.sh", script)
-        self.assertIn("./install.sh token", script)
+        self.assertIn("p token", script)
         self.assertIn("mailbox-config", script)
         self.assertIn("set_pull_interval()", script)
         self.assertIn("PO0_MAILBOX_PULL_MINUTES", script)
@@ -217,6 +219,20 @@ class FirewallLibTests(unittest.TestCase):
             allowed,
             {"10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5"},
         )
+
+    def test_readme_covers_commands_and_does_not_leak_ops_ips(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("```mermaid", readme)
+        self.assertIn("p apply", readme)
+        self.assertIn("p clear-all", readme)
+        self.assertIn("p pull-interval", readme)
+        self.assertIn("添加省市", readme)
+        self.assertIn("配置信箱", readme)
+        self.assertIn("POST /report", readme)
+        self.assertIn("GET /list", readme)
+        self.assertNotIn("104.251.236.188", readme)
+        self.assertNotIn("10.100.128.90", readme)
+        self.assertNotIn("ghspeedup.com", readme)
 
     def test_mailbox_install_is_generic(self):
         script = (ROOT / "mailbox-install.sh").read_text(encoding="utf-8")
