@@ -188,8 +188,7 @@ run_apply_or_dry_run() {
   save_selection "${selected_codes[@]}"
   echo "规则已应用。已记住本次省市选择，之后 p update 会按这次自动重灌。"
   stop_legacy_report_service
-  install_pull_timer
-  pull_mailbox || true
+  maybe_sync_mailbox
 }
 
 save_selection() {
@@ -232,8 +231,7 @@ apply_saved_selection() {
   po0_require_commands
   po0_render_apply_commands "${client_ip}" "${selected_codes[@]}" | po0_run_rendered_commands
   stop_legacy_report_service
-  install_pull_timer
-  pull_mailbox || true
+  maybe_sync_mailbox
   echo "已按上次省市选择重新应用规则。"
 }
 
@@ -335,8 +333,21 @@ pull_mailbox() {
   echo "已从信箱同步直连 IP。"
 }
 
+mailbox_configured() {
+  [[ -n "${PO0_MAILBOX_URL:-}" && -s "${PO0_TOKEN_FILE}" ]]
+}
+
+maybe_sync_mailbox() {
+  if ! mailbox_configured; then
+    return 0
+  fi
+  install_pull_timer
+  pull_mailbox || true
+}
+
 install_pull_timer() {
   po0_require_root
+  mailbox_configured || return 0
   local script_root="${PO0_INSTALL_DIR}"
   [[ -x "${script_root}/install.sh" ]] || script_root="${ROOT}"
   if command -v systemctl >/dev/null 2>&1 && [[ -d /etc/systemd/system ]]; then
@@ -515,6 +526,7 @@ region_menu() {
  3) 看当前规则
  4) 关掉地区白名单
  5) 清除当前所有规则
+ 6) 手动加一个 IP
  0) 返回
 EOF
     choice="$(read_from_tty "请选择: ")"
@@ -524,6 +536,7 @@ EOF
       3) status_rules; pause_menu ;;
       4) clear_rules; pause_menu ;;
       5) clear_all_rules; pause_menu ;;
+      6) add_manual_ip || true; pause_menu ;;
       0) return 0 ;;
       *) echo "无效选择。" ;;
     esac
@@ -540,8 +553,7 @@ phone_menu() {
  2) 修改拉取间隔
  3) 马上从信箱拉一次
  4) 看已加的手机 IP
- 5) 手动加一个 IP
- 6) 显示 Loon 要填的地址和 Token
+ 5) 显示 Loon 要填的地址和 Token
  0) 返回
 EOF
     choice="$(read_from_tty "请选择: ")"
@@ -550,8 +562,7 @@ EOF
       2) set_pull_interval || true; pause_menu ;;
       3) pull_mailbox || true; pause_menu ;;
       4) show_clients; pause_menu ;;
-      5) add_manual_ip || true; pause_menu ;;
-      6) show_token || true; pause_menu ;;
+      5) show_token || true; pause_menu ;;
       0) return 0 ;;
       *) echo "无效选择。" ;;
     esac
