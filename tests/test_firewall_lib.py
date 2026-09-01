@@ -246,6 +246,7 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("POST /report", readme)
         self.assertIn("GET /list", readme)
         self.assertIn("GET /update", readme)
+        self.assertIn("不要 `export` 到整机会话", readme)
         self.assertIn("无公开探活", readme)
         self.assertNotIn("104.251.236.188", readme)
         self.assertNotIn("10.100.128.90", readme)

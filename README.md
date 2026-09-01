@@ -2,7 +2,7 @@
 
 在国内服务器上按中国地区 CIDR 限制入站：命中选中省市，或命中客户端 IP，才放行；其余来源访问任意端口都会被拒绝。
 
-国内防火墙机器**不要开 HTTP 上报口**。需要手机 IP 时：Loon 报到**海外信箱**，国内机器只出站拉取。
+国内防火墙机器**不要开 HTTP 上报口**。需要手机 IP 时：Loon 报到**海外信箱**，国内机器只出站拉取。已配信箱后，`p update` 也从信箱拉包，由信箱机器代下 GitHub。
 
 ## 免责声明
 
@@ -22,10 +22,13 @@ flowchart TD
   H --> F
 
   B -->|信箱| I[海外机器 mailbox-install.sh]
-  I --> J[信箱监听 POST /report 与 GET /list]
+  I --> J[信箱 POST /report<br/>GET /list  GET /update]
   K[Loon 插件] -->|DIRECT 出口 IP + Token<br/>POST /report| J
-  L[国内机器 配置信箱] -->|出站 GET /list<br/>源 IP 须在允许名单 + Token| J
+  L[国内机器 配置信箱] -->|出站 GET /list<br/>Token + 允许源 IP| J
   L --> H
+  N[p update] -->|已配信箱：GET /update<br/>信箱代下 GitHub| J
+  N -->|未配信箱：gh-proxy 等| O[覆盖安装目录]
+  J --> O
   F --> M[未命中：全部入站拒绝]
 ```
 
@@ -34,6 +37,7 @@ flowchart TD
 - **离线**：只选省市。本机 CIDR → `po0_region_whitelist` → 防火墙链。不联网也能应用。
 - **手动 IP**：写入 `po0_client_ips`。链已挂上时立即生效，不必配信箱。
 - **信箱**：Loon 把手机 DIRECT 出口 IP `POST /report` 到海外；国内机器定时 `GET /list` 拉回，写入 `po0_client_ips`。国内不开监听口。
+- **更新**：已配信箱时 `GET /update`（鉴权同 `/list`），失败不改走 GitHub 加速源。未配信箱时走 gh-proxy 等。
 - **应用**：必须先「添加省市」挂上链，客户端 IP 才会真正放行。未配信箱时不会安装拉取定时器。
 
 ## 安装
@@ -46,6 +50,16 @@ curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/
 ```
 
 装完输入 `p` 进入菜单。加速源默认 `gh-proxy.com`。
+
+本机出不去 GitHub HTTPS 时，首次安装可对**这一条命令**临时指定 HTTP 代理（不要 `export` 到整机会话）：
+
+```bash
+cd /
+env http_proxy='http://用户:密码@代理地址:端口' https_proxy='http://用户:密码@代理地址:端口' \
+  bash -c 'curl -fsSL https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/bootstrap.sh | bash'
+```
+
+装完配信箱之后，更新走信箱，不必再开代理。
 
 海外信箱（可选）在能被手机直连、也能被国内机器访问的机器上：
 
@@ -141,7 +155,7 @@ po0 白名单
 | `p clear` | 清除省市（保留客户端 IP） |
 | `p clear-all` | 清除全部 |
 | `p add-ip` | 手动添加 IPv4 |
-| `p update` | 更新脚本和 IP 库，并按上次选择应用 |
+| `p update` | 更新脚本和 IP 库；已配信箱则从信箱拉取，并按上次选择应用 |
 | `p mailbox-config` | 配置信箱 |
 | `p pull-interval` | 修改拉取间隔（分钟，如 `3` 即 3 分钟） |
 | `p pull` | 立即从信箱拉取 |
@@ -180,7 +194,7 @@ https://cdn.jsdelivr.net/gh/rollingshmily/po0_whitelist@main/loon/po0-ip-report.
 
 省市应用不访问外网。缺少 `iptables` / `ipset` 时用系统软件源安装。
 
-信箱默认只响应 `POST /report` 和 `GET /list`，无公开探活。鉴权失败会限速，错误响应不带回源 IP。默认仍是 HTTP（Loon 直连上报）。若已有域名证书，可在信箱机器环境变量里设置 `PO0_MAILBOX_TLS_CERT` / `PO0_MAILBOX_TLS_KEY` 启用 TLS；自签证书会让 Loon 上报失败，不要用。
+信箱只响应 `POST /report`、`GET /list`、`GET /update`，无公开探活。鉴权失败会限速，错误响应不带回源 IP。默认仍是 HTTP（Loon 直连上报）。若已有域名证书，可在信箱机器环境变量里设置 `PO0_MAILBOX_TLS_CERT` / `PO0_MAILBOX_TLS_KEY` 启用 TLS；自签证书会让 Loon 上报失败，不要用。
 
 ## 文件
 
