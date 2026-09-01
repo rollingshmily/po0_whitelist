@@ -61,6 +61,16 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("iptables -A PO0_REGION_WHITELIST -m set --match-set po0_region_whitelist src -j ACCEPT", result.stdout)
         self.assertIn("iptables -A PO0_REGION_WHITELIST -j REJECT", result.stdout)
 
+    def test_renders_enforce_without_region_codes(self):
+        result = run_tool("render-enforce", "--client-ip", "198.51.100.88")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ipset create po0_client_ips hash:ip family inet -exist", result.stdout)
+        self.assertIn("ipset add po0_client_ips 198.51.100.88 -exist", result.stdout)
+        self.assertNotIn("ipset flush po0_region_whitelist", result.stdout)
+        self.assertIn("iptables -A PO0_REGION_WHITELIST -m set --match-set po0_client_ips src -j ACCEPT", result.stdout)
+        self.assertIn("iptables -A PO0_REGION_WHITELIST -j REJECT", result.stdout)
+
     def test_renders_forward_chain_jump_for_forwarded_ports(self):
         result = run_tool("render-apply", "990100")
 
@@ -174,6 +184,8 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("pull_mailbox()", script)
         self.assertIn("mailbox_configured()", script)
         self.assertIn("maybe_sync_mailbox()", script)
+        self.assertIn("ensure_enforcement()", script)
+        self.assertIn("po0_render_enforce_commands", script)
         self.assertIn("stop_legacy_report_service()", script)
         self.assertNotIn("104.251.236.188", script)
         self.assertNotIn("10.100.128.90", script)
@@ -246,6 +258,7 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("POST /report", readme)
         self.assertIn("GET /list", readme)
         self.assertIn("GET /update", readme)
+        self.assertIn("只配信箱/手动加 IP，不必先选省市", readme)
         self.assertIn("不要 `export` 到整机会话", readme)
         self.assertIn("无公开探活", readme)
         self.assertNotIn("104.251.236.188", readme)

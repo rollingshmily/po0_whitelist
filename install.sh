@@ -255,8 +255,14 @@ status_rules() {
 clear_rules() {
   po0_require_root
   po0_require_commands
+  ipset flush "${PO0_SET_NAME}" 2>/dev/null || true
+  if mailbox_configured || client_set_has_members; then
+    ensure_enforcement
+    echo "已清除省市。客户端白名单仍在。"
+    return
+  fi
   po0_render_clear_commands | po0_run_rendered_commands
-  echo "已关掉地区白名单。手机直连 IP 名单还在。"
+  echo "已清除省市。"
 }
 
 clear_all_rules() {
@@ -331,10 +337,25 @@ pull_mailbox() {
     ipset add "${PO0_CLIENT_SET_NAME}" "${ip}" -exist
   done < <(python3 -c 'import json,sys; [print(ip) for ip in json.loads(sys.argv[1]).get("ips", [])]' "${ips}")
   echo "已从信箱同步直连 IP。"
+  ensure_enforcement
 }
 
 mailbox_configured() {
   [[ -n "${PO0_MAILBOX_URL:-}" && -s "${PO0_TOKEN_FILE}" ]]
+}
+
+client_set_has_members() {
+  command -v ipset >/dev/null 2>&1 || return 1
+  ipset list "${PO0_CLIENT_SET_NAME}" 2>/dev/null | awk '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/{found=1} END{exit !found}'
+}
+
+ensure_enforcement() {
+  po0_require_root
+  po0_require_commands
+  local client_ip
+  client_ip="$(po0_detect_ssh_client_ip)"
+  po0_render_enforce_commands "${client_ip}" | po0_run_rendered_commands
+  echo "防火墙已生效：命中省市或客户端 IP 才放行，其余入站拒绝。"
 }
 
 maybe_sync_mailbox() {
@@ -450,7 +471,7 @@ mailbox_config() {
   install_pull_timer
   echo "信箱已配置。Loon 填地址 ${host}、端口 ${port}，Token 用刚才那把。"
   echo "本机每 ${minutes} 分钟拉一次。请给该信箱 IP 在 Loon 里走 DIRECT。"
-  pull_mailbox || true
+  pull_mailbox || ensure_enforcement
 }
 
 show_clients() {
@@ -476,7 +497,7 @@ add_manual_ip() {
     echo "不是合法 IPv4。" >&2
     return 1
   }
-  ipset create "${PO0_CLIENT_SET_NAME}" hash:ip family inet -exist
+  ensure_enforcement
   ipset add "${PO0_CLIENT_SET_NAME}" "${ip}" -exist
   echo "已加入直连白名单：${ip}"
 }

@@ -66,6 +66,15 @@ po0_render_clear_commands() {
   po0_region_tool render-clear
 }
 
+po0_render_enforce_commands() {
+  local client_ip="${1:-}"
+  if [[ -n "${client_ip}" ]]; then
+    po0_region_tool render-enforce --client-ip "${client_ip}"
+  else
+    po0_region_tool render-enforce
+  fi
+}
+
 po0_require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
     echo "此操作需要 root 权限，请使用 sudo 或 root 用户运行。" >&2

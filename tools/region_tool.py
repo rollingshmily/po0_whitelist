@@ -169,12 +169,15 @@ def render_apply_commands(cidrs: list[str], client_ip: str = "") -> list[str]:
         ipaddress.ip_address(client_ip)
         commands.append(f"ipset add {SET_NAME} {client_ip} -exist")
 
-    commands.extend(
-        [
-            f"iptables -N {CHAIN_NAME} 2>/dev/null || true",
-            f"iptables -F {CHAIN_NAME}",
-        ]
-    )
+    commands.extend(render_chain_commands())
+    return commands
+
+
+def render_chain_commands() -> list[str]:
+    commands = [
+        f"iptables -N {CHAIN_NAME} 2>/dev/null || true",
+        f"iptables -F {CHAIN_NAME}",
+    ]
     for entry_chain in ENTRY_CHAINS:
         commands.append(
             f"iptables -C {entry_chain} -j {CHAIN_NAME} 2>/dev/null || "
@@ -189,6 +192,18 @@ def render_apply_commands(cidrs: list[str], client_ip: str = "") -> list[str]:
             f"iptables -A {CHAIN_NAME} -j REJECT",
         ]
     )
+    return commands
+
+
+def render_enforce_commands(client_ip: str = "") -> list[str]:
+    commands = [
+        f"ipset create {SET_NAME} hash:net family inet -exist",
+        f"ipset create {CLIENT_SET_NAME} hash:ip family inet -exist",
+    ]
+    if client_ip:
+        ipaddress.ip_address(client_ip)
+        commands.append(f"ipset add {CLIENT_SET_NAME} {client_ip} -exist")
+    commands.extend(render_chain_commands())
     return commands
 
 
@@ -261,6 +276,9 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("--client-ip", default="")
     render.add_argument("codes", nargs="+")
 
+    enforce = subparsers.add_parser("render-enforce")
+    enforce.add_argument("--client-ip", default="")
+
     subparsers.add_parser("render-clear")
 
     save_selection_parser = subparsers.add_parser("save-selection")
@@ -296,6 +314,8 @@ def main() -> int:
     elif args.command == "render-apply":
         cidrs = collect_cidrs(metadata, args.data_dir, args.codes)
         print("\n".join(render_apply_commands(cidrs, args.client_ip)))
+    elif args.command == "render-enforce":
+        print("\n".join(render_enforce_commands(args.client_ip)))
     elif args.command == "render-clear":
         print("\n".join(render_clear_commands()))
     elif args.command == "save-selection":
