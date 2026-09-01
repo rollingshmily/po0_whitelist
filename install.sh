@@ -11,6 +11,7 @@ PO0_STATE_DIR="${PO0_STATE_DIR:-/var/lib/po0_whitelist}"
 PO0_SELECTION_FILE="${PO0_SELECTION_FILE:-${PO0_STATE_DIR}/last_selection.json}"
 PO0_TOKEN_FILE="${PO0_TOKEN_FILE:-${PO0_STATE_DIR}/mailbox.token}"
 PO0_MAILBOX_CONF="${PO0_MAILBOX_CONF:-${PO0_STATE_DIR}/mailbox.conf}"
+PO0_MANUAL_IPS_FILE="${PO0_MANUAL_IPS_FILE:-${PO0_STATE_DIR}/manual_ips.txt}"
 if [[ -f "${PO0_MAILBOX_CONF}" ]]; then
   # shellcheck disable=SC1090
   source "${PO0_MAILBOX_CONF}"
@@ -270,6 +271,7 @@ clear_all_rules() {
   po0_require_commands
   po0_render_clear_commands | po0_run_rendered_commands
   ipset destroy "${PO0_CLIENT_SET_NAME}" 2>/dev/null || true
+  rm -f "${PO0_MANUAL_IPS_FILE}"
   echo "已清除当前所有规则（地区白名单 + 手机直连 IP）。"
 }
 
@@ -332,12 +334,33 @@ pull_mailbox() {
     return 1
   }
   ipset create "${PO0_CLIENT_SET_NAME}" hash:ip family inet -exist
+  ipset flush "${PO0_CLIENT_SET_NAME}"
   while IFS= read -r ip; do
     [[ -n "${ip}" ]] || continue
     ipset add "${PO0_CLIENT_SET_NAME}" "${ip}" -exist
   done < <(python3 -c 'import json,sys; [print(ip) for ip in json.loads(sys.argv[1]).get("ips", [])]' "${ips}")
-  echo "已从信箱同步直连 IP。"
+  apply_manual_ips
+  echo "已从信箱同步直连 IP（过期地址已拆除，省市段不动）。"
   ensure_enforcement
+}
+
+apply_manual_ips() {
+  [[ -f "${PO0_MANUAL_IPS_FILE}" ]] || return 0
+  command -v ipset >/dev/null 2>&1 || return 0
+  local ip
+  while IFS= read -r ip; do
+    [[ -n "${ip}" ]] || continue
+    ipset add "${PO0_CLIENT_SET_NAME}" "${ip}" -exist
+  done < "${PO0_MANUAL_IPS_FILE}"
+}
+
+remember_manual_ip() {
+  local ip="$1"
+  mkdir -p "${PO0_STATE_DIR}"
+  if [[ -f "${PO0_MANUAL_IPS_FILE}" ]] && grep -qxF "${ip}" "${PO0_MANUAL_IPS_FILE}"; then
+    return 0
+  fi
+  printf '%s\n' "${ip}" >> "${PO0_MANUAL_IPS_FILE}"
 }
 
 mailbox_configured() {
@@ -355,7 +378,6 @@ ensure_enforcement() {
   local client_ip
   client_ip="$(po0_detect_ssh_client_ip)"
   po0_render_enforce_commands "${client_ip}" | po0_run_rendered_commands
-  echo "防火墙已生效：命中省市或客户端 IP 才放行，其余入站拒绝。"
 }
 
 maybe_sync_mailbox() {
@@ -497,6 +519,7 @@ add_manual_ip() {
     echo "不是合法 IPv4。" >&2
     return 1
   }
+  remember_manual_ip "${ip}"
   ensure_enforcement
   ipset add "${PO0_CLIENT_SET_NAME}" "${ip}" -exist
   echo "已加入直连白名单：${ip}"
