@@ -591,29 +591,71 @@ setup_install() {
   echo "Loon 信箱请先在海外机器跑 mailbox-install.sh，再在本机 p mailbox-config"
 }
 
+replace_install_tree() {
+  local src="$1" dest="$2"
+  mkdir -p "${dest}"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete --exclude '.git' "${src}/" "${dest}/"
+  else
+    python3 - "${src}" "${dest}" <<'PY'
+import shutil, sys
+from pathlib import Path
+src, dest = Path(sys.argv[1]), Path(sys.argv[2])
+dest.mkdir(parents=True, exist_ok=True)
+wanted = set()
+for path in src.rglob("*"):
+    rel = path.relative_to(src)
+    if str(rel) == ".git" or str(rel).startswith(".git/"):
+        continue
+    wanted.add(rel)
+    target = dest / rel
+    if path.is_dir():
+        target.mkdir(parents=True, exist_ok=True)
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+for path in sorted(dest.rglob("*"), reverse=True):
+    rel = path.relative_to(dest)
+    if str(rel) == ".git" or str(rel).startswith(".git/"):
+        continue
+    if rel not in wanted:
+        if path.is_dir():
+            try:
+                path.rmdir()
+            except OSError:
+                pass
+        else:
+            path.unlink()
+PY
+  fi
+  chmod 755 "${dest}/install.sh" "${dest}/bootstrap.sh" "${dest}/mailbox-install.sh" 2>/dev/null || true
+}
+
 update_from_github() {
   po0_require_root
-  local tmp src
+  local tmp src dest
   tmp="$(mktemp -d)"
-  trap 'rm -rf "${tmp}"' RETURN
   src="$(po0_fetch_latest_tree "${tmp}")"
-  mkdir -p "${ROOT}/data/regions"
-  find "${ROOT}/data/regions" -type f -name '*.txt' -delete
-  cp -a "${src}/." "${ROOT}/"
-  chmod 755 "${ROOT}/install.sh" "${ROOT}/bootstrap.sh"
-  if [[ -d "${PO0_INSTALL_DIR}" && "$(cd "${ROOT}" && pwd)" != "$(cd "${PO0_INSTALL_DIR}" && pwd)" ]]; then
-    find "${PO0_INSTALL_DIR}/data/regions" -type f -name '*.txt' -delete 2>/dev/null || true
-    cp -a "${src}/." "${PO0_INSTALL_DIR}/"
-    chmod 755 "${PO0_INSTALL_DIR}/install.sh"
-    install_shortcut "${PO0_INSTALL_DIR}"
-  else
-    install_shortcut "${ROOT}"
+  dest="${PO0_INSTALL_DIR}"
+  mkdir -p "${dest}"
+  replace_install_tree "${src}" "${dest}"
+  if [[ "$(cd "${ROOT}" && pwd)" != "$(cd "${dest}" && pwd)" ]]; then
+    replace_install_tree "${src}" "${ROOT}"
   fi
-  echo "已从 GitHub 同步最新 IP 库和脚本。"
+  install_shortcut "${dest}"
+  rm -rf "${tmp}"
+  echo "脚本和 IP 库已覆盖更新，正在加载新版本..."
+  exec bash "${dest}/install.sh" __after_update
+}
+
+after_update() {
   if [[ -f "${PO0_SELECTION_FILE}" ]]; then
-    apply_saved_selection update
+    apply_saved_selection update || true
   else
-    echo "还没有保存过省市选择，防火墙未改。先运行 p 选一次即可。"
+    echo "文件已更新。还没有保存过省市选择，防火墙未改。"
+  fi
+  if [[ -t 0 ]]; then
+    show_menu
   fi
 }
 
@@ -627,6 +669,7 @@ main() {
     clear) clear_rules ;;
     setup|install) setup_install ;;
     update) update_from_github ;;
+    __after_update) after_update ;;
     reapply) apply_saved_selection reapply ;;
     token) show_token ;;
     mailbox-config) mailbox_config ;;
