@@ -458,41 +458,80 @@ uninstall_local() {
   echo "本机脚本已卸载。海外信箱需在信箱机器上执行：sudo bash mailbox-install.sh uninstall"
 }
 
+pause_menu() {
+  read_from_tty "回车返回..." >/dev/null || true
+}
+
+region_menu() {
+  local choice
+  while true; do
+    cat <<'EOF'
+
+-- 地区白名单 --
+ 1) 选地区，立刻生效
+ 2) 用上次选的地区再生效（不用重选）
+ 3) 只打印命令，不改防火墙
+ 4) 看当前规则
+ 5) 关掉地区白名单
+ 0) 返回
+EOF
+    choice="$(read_from_tty "请选择: ")"
+    case "${choice}" in
+      1) run_apply_or_dry_run 0; pause_menu ;;
+      2) apply_saved_selection reapply || true; pause_menu ;;
+      3) run_apply_or_dry_run 1; pause_menu ;;
+      4) status_rules; pause_menu ;;
+      5) clear_rules; pause_menu ;;
+      0) return 0 ;;
+      *) echo "无效选择。" ;;
+    esac
+  done
+}
+
+phone_menu() {
+  local choice
+  while true; do
+    cat <<'EOF'
+
+-- 手机 IP --
+ 1) 配置海外信箱
+ 2) 马上从信箱拉一次
+ 3) 看已加的手机 IP
+ 4) 手动加一个 IP
+ 5) 显示 Loon 要填的地址和 Token
+ 0) 返回
+EOF
+    choice="$(read_from_tty "请选择: ")"
+    case "${choice}" in
+      1) mailbox_config; pause_menu ;;
+      2) pull_mailbox || true; pause_menu ;;
+      3) show_clients; pause_menu ;;
+      4) add_manual_ip || true; pause_menu ;;
+      5) show_token || true; pause_menu ;;
+      0) return 0 ;;
+      *) echo "无效选择。" ;;
+    esac
+  done
+}
+
 show_menu() {
   local choice
   while true; do
     cat <<'EOF'
 
-======== po0 白名单 ========
- 1) 选择省市并应用
- 2) 预览命令（不改防火墙）
- 3) 按上次省市重灌
- 4) 查看状态
- 5) 清除省市规则
- 6) 手动加一个直连 IP
- 7) 配置海外信箱
- 8) 从信箱拉取 IP
- 9) 查看直连 IP 名单
-10) 显示 Loon 地址和 Token
-11) 更新脚本和 IP 库
-12) 卸载本机脚本
+po0 白名单
+ 1) 地区白名单
+ 2) 手机 IP
+ 3) 更新脚本和 IP 库
+ 4) 卸载
  0) 退出
-==========================
 EOF
     choice="$(read_from_tty "请选择: ")"
     case "${choice}" in
-      1) run_apply_or_dry_run 0 ;;
-      2) run_apply_or_dry_run 1 ;;
-      3) apply_saved_selection reapply || true ;;
-      4) status_rules ;;
-      5) clear_rules ;;
-      6) add_manual_ip || true ;;
-      7) mailbox_config ;;
-      8) pull_mailbox || true ;;
-      9) show_clients ;;
-      10) show_token || true ;;
-      11) update_from_github ;;
-      12) uninstall_local; return 0 ;;
+      1) region_menu ;;
+      2) phone_menu ;;
+      3) update_from_github; pause_menu ;;
+      4) uninstall_local; return 0 ;;
       0|q|Q) echo "Bye."; return 0 ;;
       *) echo "无效选择。" ;;
     esac
