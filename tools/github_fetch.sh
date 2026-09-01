@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 国内 GitHub 加速下载：ghspeedup.com -> gh-proxy.com -> ghfast.top -> 直连
+# 国内 GitHub 加速下载：gh-proxy.com -> ghfast.top -> 直连
 set -euo pipefail
 
 PO0_REPO="${PO0_REPO:-rollingshmily/po0_whitelist}"
@@ -7,7 +7,6 @@ PO0_BRANCH="${PO0_BRANCH:-main}"
 PO0_ARCHIVE_URL="https://github.com/${PO0_REPO}/archive/refs/heads/${PO0_BRANCH}.tar.gz"
 
 PO0_GITHUB_MIRRORS=(
-  "https://ghspeedup.com/"
   "https://gh-proxy.com/"
   "https://ghfast.top/"
 )

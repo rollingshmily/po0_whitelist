@@ -35,12 +35,6 @@ sudo bash mailbox-install.sh
 ## 2. 国内防火墙机器
 
 ```bash
-curl -fsSL https://ghspeedup.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/bootstrap.sh | sudo bash
-```
-
-失败再试：
-
-```bash
 curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/bootstrap.sh | sudo bash
 ```
 

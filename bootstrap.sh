@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# 国内机器一键安装：优先走 ghspeedup.com / gh-proxy.com 拉 GitHub 包。
+# 国内机器一键安装：优先走 gh-proxy.com 拉 GitHub 包。
 # 用法：
-#   curl -fsSL https://ghspeedup.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/bootstrap.sh | sudo bash
+#   curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/bootstrap.sh | sudo bash
 set -euo pipefail
 
 REPO="${PO0_REPO:-rollingshmily/po0_whitelist}"
@@ -10,7 +10,6 @@ INSTALL_DIR="${PO0_INSTALL_DIR:-/opt/po0_whitelist}"
 ARCHIVE_URL="https://github.com/${REPO}/archive/refs/heads/${BRANCH}.tar.gz"
 
 MIRRORS=(
-  "https://ghspeedup.com/"
   "https://gh-proxy.com/"
   "https://ghfast.top/"
 )
