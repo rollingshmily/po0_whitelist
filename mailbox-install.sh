@@ -40,7 +40,7 @@ echo "国内要做 iptables 白名单的机器不要装这个，只装 install.s
 echo
 
 PORT="$(read_default "监听端口 [18443]: " "18443")"
-PULL_ALLOW="$(read_default "允许拉取名单的源 IP（国内机器内网 IP，多个用逗号分隔）: " "")"
+PULL_ALLOW="$(read_default "允许拉取名单的源 IP（国内机器访问信箱时的源地址，多个用逗号/空格都行）: " "")"
 if [[ -z "${PULL_ALLOW}" ]]; then
   echo "必须填写至少一个拉取源 IP，否则防火墙机器取不回名单。" >&2
   exit 1
@@ -66,7 +66,7 @@ PO0_MAILBOX_PORT=${PORT}
 PO0_MAILBOX_BIND=0.0.0.0
 PO0_MAILBOX_TOKEN_FILE=${TOKEN_FILE}
 PO0_MAILBOX_STORE=${STORE_FILE}
-PO0_MAILBOX_PULL_ALLOW=${PULL_ALLOW}
+PO0_MAILBOX_PULL_ALLOW="${PULL_ALLOW}"
 EOF
 chmod 600 "${ENV_FILE}"
 

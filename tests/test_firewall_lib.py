@@ -178,6 +178,19 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("parseTargets", script)
         self.assertIn("extra", script)
 
+    def test_mailbox_allow_list_splits_mixed_separators(self):
+        import importlib.util
+
+        path = ROOT / "tools" / "mailbox_server.py"
+        spec = importlib.util.spec_from_file_location("mailbox_server", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        allowed = mod.parse_allow_list("10.0.0.1，10.0.0.2、 10.0.0.3;10.0.0.4  10.0.0.5")
+        self.assertEqual(
+            allowed,
+            {"10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5"},
+        )
+
     def test_mailbox_install_is_generic(self):
         script = (ROOT / "mailbox-install.sh").read_text(encoding="utf-8")
         self.assertIn("监听端口", script)

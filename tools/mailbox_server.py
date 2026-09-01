@@ -6,6 +6,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import os
+import re
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,8 +26,22 @@ def load_token() -> str:
     return token
 
 
-TOKEN = load_token()
-ALLOWED_PULL = {item.strip() for item in PULL_ALLOW.split(",") if item.strip()}
+def parse_allow_list(raw: str) -> set[str]:
+    parts = re.split(r"[,\uff0c\u3001;；\s]+", raw or "")
+    allowed: set[str] = set()
+    for part in parts:
+        item = part.strip().strip("\"'")
+        if not item:
+            continue
+        try:
+            allowed.add(str(ipaddress.ip_address(item)))
+        except ValueError:
+            continue
+    return allowed
+
+
+TOKEN = ""
+ALLOWED_PULL: set[str] = set()
 
 
 def read_store() -> dict:
@@ -81,8 +96,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, {"ok": False, "error": "not found"})
             return
         peer = self.client_address[0]
-        if peer not in ALLOWED_PULL or not self._bearer_ok():
-            self._send(403, {"ok": False, "error": "forbidden"})
+        if not self._bearer_ok() or peer not in ALLOWED_PULL:
+            self._send(403, {"ok": False, "error": "forbidden", "peer": peer})
             return
         data = read_store()
         write_store(data)
@@ -118,9 +133,16 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, {"ok": True, "ip": ip})
 
 
-def main() -> int:
+def configure() -> None:
+    global TOKEN, ALLOWED_PULL
     if not TOKEN_FILE.exists():
         raise SystemExit(f"missing {TOKEN_FILE}")
+    TOKEN = load_token()
+    ALLOWED_PULL = parse_allow_list(os.environ.get("PO0_MAILBOX_PULL_ALLOW", PULL_ALLOW))
+
+
+def main() -> int:
+    configure()
     STORE_FILE.parent.mkdir(parents=True, exist_ok=True)
     server = ThreadingHTTPServer((BIND, PORT), Handler)
     print(f"po0 mailbox listening on {BIND}:{PORT}", flush=True)
