@@ -470,18 +470,16 @@ region_menu() {
 -- 地区白名单 --
  1) 选地区，立刻生效
  2) 用上次选的地区再生效（不用重选）
- 3) 只打印命令，不改防火墙
- 4) 看当前规则
- 5) 关掉地区白名单
+ 3) 看当前规则
+ 4) 关掉地区白名单
  0) 返回
 EOF
     choice="$(read_from_tty "请选择: ")"
     case "${choice}" in
       1) run_apply_or_dry_run 0; pause_menu ;;
       2) apply_saved_selection reapply || true; pause_menu ;;
-      3) run_apply_or_dry_run 1; pause_menu ;;
-      4) status_rules; pause_menu ;;
-      5) clear_rules; pause_menu ;;
+      3) status_rules; pause_menu ;;
+      4) clear_rules; pause_menu ;;
       0) return 0 ;;
       *) echo "无效选择。" ;;
     esac
