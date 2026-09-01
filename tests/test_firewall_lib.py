@@ -151,6 +151,7 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("PO0_MAILBOX_PULL_MINUTES", script)
         self.assertIn(" 1) 省市白名单", script)
         self.assertIn(" 2) 信箱", script)
+        self.assertIn(" 1) 配置信箱", script)
         self.assertIn(" 3) 更新", script)
         self.assertIn(" 4) 卸载", script)
         self.assertIn("show_menu()", script)
