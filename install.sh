@@ -258,7 +258,15 @@ clear_rules() {
   po0_require_root
   po0_require_commands
   po0_render_clear_commands | po0_run_rendered_commands
-  echo "已清除本脚本管理的规则。"
+  echo "已关掉地区白名单。手机直连 IP 名单还在。"
+}
+
+clear_all_rules() {
+  po0_require_root
+  po0_require_commands
+  po0_render_clear_commands | po0_run_rendered_commands
+  ipset destroy "${PO0_CLIENT_SET_NAME}" 2>/dev/null || true
+  echo "已清除当前所有规则（地区白名单 + 手机直连 IP）。"
 }
 
 install_shortcut() {
@@ -505,6 +513,7 @@ region_menu() {
  2) 用上次选的地区再生效（不用重选）
  3) 看当前规则
  4) 关掉地区白名单
+ 5) 清除当前所有规则
  0) 返回
 EOF
     choice="$(read_from_tty "请选择: ")"
@@ -513,6 +522,7 @@ EOF
       2) apply_saved_selection reapply || true; pause_menu ;;
       3) status_rules; pause_menu ;;
       4) clear_rules; pause_menu ;;
+      5) clear_all_rules; pause_menu ;;
       0) return 0 ;;
       *) echo "无效选择。" ;;
     esac
@@ -667,6 +677,7 @@ main() {
     dry-run) run_apply_or_dry_run 1 ;;
     status) status_rules ;;
     clear) clear_rules ;;
+    clear-all) clear_all_rules ;;
     setup|install) setup_install ;;
     update) update_from_github ;;
     __after_update) after_update ;;

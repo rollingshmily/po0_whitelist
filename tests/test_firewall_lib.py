@@ -159,6 +159,8 @@ class FirewallLibTests(unittest.TestCase):
         self.assertIn("uninstall_local()", script)
         self.assertIn("add_manual_ip()", script)
         self.assertIn("用上次选的地区再生效", script)
+        self.assertIn("清除当前所有规则", script)
+        self.assertIn("clear_all_rules()", script)
         self.assertIn('command="${1:-menu}"', script)
         self.assertIn("pull_mailbox()", script)
         self.assertIn("stop_legacy_report_service()", script)
