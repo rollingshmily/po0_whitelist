@@ -55,12 +55,29 @@ function storeKey(target) {
   return "po0_last_ip_" + target.host + "_" + target.port;
 }
 
-function postOne(target, callback) {
+function failText(error, response, data) {
+  if (error) {
+    return String(error);
+  }
+  const status = response && response.status;
+  let payload = {};
+  try {
+    payload = JSON.parse(data || "{}");
+  } catch (e) {
+    payload = {};
+  }
+  if (payload && payload.error) {
+    return "HTTP " + status + " " + payload.error;
+  }
+  return "HTTP " + status;
+}
+
+function postOnce(target, callback) {
   const url = "http://" + target.host + ":" + target.port + "/report";
   $httpClient.post(
     {
       url: url,
-      timeout: 8000,
+      timeout: 15000,
       headers: {
         Authorization: "Bearer " + target.token,
         "Content-Type": "application/json",
@@ -69,10 +86,6 @@ function postOne(target, callback) {
       node: "DIRECT",
     },
     function (error, response, data) {
-      if (error) {
-        callback("上报失败");
-        return;
-      }
       const status = response && response.status;
       let payload = {};
       try {
@@ -80,8 +93,8 @@ function postOne(target, callback) {
       } catch (e) {
         payload = {};
       }
-      if (status !== 200 || !payload.ok) {
-        callback("上报失败");
+      if (error || status !== 200 || !payload.ok) {
+        callback(failText(error, response, data));
         return;
       }
       const ip = String(payload.ip || "");
@@ -97,6 +110,24 @@ function postOne(target, callback) {
       callback(null);
     }
   );
+}
+
+function postOne(target, callback) {
+  postOnce(target, function (error) {
+    if (!error) {
+      callback(null);
+      return;
+    }
+    console.log("po0 mailbox retry after: " + error);
+    const retry = function () {
+      postOnce(target, callback);
+    };
+    if (typeof setTimeout === "function") {
+      setTimeout(retry, 1500);
+    } else {
+      retry();
+    }
+  });
 }
 
 function runQueue(targets, index, errors) {

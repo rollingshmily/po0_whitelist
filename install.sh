@@ -433,7 +433,7 @@ show_token() {
   echo "Loon 信箱地址: ${PO0_MAILBOX_HOST}"
   echo "Loon 信箱端口: ${PO0_MAILBOX_PORT}"
   echo "Token: $(cat "${PO0_TOKEN_FILE}")"
-  echo "Loon 插件: https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin"
+  echo "Loon 插件: https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin"
 }
 
 write_mailbox_conf() {

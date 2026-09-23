@@ -171,13 +171,7 @@ po0 白名单
 先删旧插件，再导入：
 
 ```text
-https://gh-proxy.com/https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin
-```
-
-备用：
-
-```text
-https://cdn.jsdelivr.net/gh/rollingshmily/po0_whitelist@main/loon/po0-ip-report.plugin
+https://raw.githubusercontent.com/rollingshmily/po0_whitelist/main/loon/po0-ip-report.plugin
 ```
 
 插件里填写：
